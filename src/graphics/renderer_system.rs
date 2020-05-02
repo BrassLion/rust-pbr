@@ -6,7 +6,7 @@ use winit::{
 
 use crate::graphics::*;
 
-pub trait Renderer: 'static + Sized {
+pub trait RenderSystem: 'static + Sized {
     fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self;
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device);
@@ -19,7 +19,7 @@ pub trait Renderer: 'static + Sized {
     ) -> wgpu::CommandBuffer;
 }
 
-pub fn run<R: Renderer>() {
+pub fn run<R: RenderSystem>() {
     // Init window.
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();

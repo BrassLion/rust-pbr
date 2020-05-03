@@ -8,7 +8,20 @@ struct ExampleRenderer {
 
 impl graphics::renderer_system::RenderSystem for ExampleRenderer {
     fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self {
-        let points_renderer = graphics::renderer_points::PointsRenderer::new(sc_desc, device);
+        let vertices = &[
+            graphics::renderer_points::Vertex {
+                position: [0.0, 0.5, 0.0],
+            },
+            graphics::renderer_points::Vertex {
+                position: [-0.5, -0.5, 0.0],
+            },
+            graphics::renderer_points::Vertex {
+                position: [0.5, -0.5, 0.0],
+            },
+        ];
+
+        let points_renderer =
+            graphics::renderer_points::PointsRenderer::new(sc_desc, device, vertices);
 
         Self { points_renderer }
     }

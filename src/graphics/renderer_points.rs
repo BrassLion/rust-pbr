@@ -1,9 +1,18 @@
 pub struct PointsRenderer {
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+}
+
+pub struct Vertex {
+    pub position: [f32; 3],
 }
 
 impl PointsRenderer {
-    pub fn new(swap_chain_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self {
+    pub fn new(
+        swap_chain_desc: &wgpu::SwapChainDescriptor,
+        device: &wgpu::Device,
+        vertex_data: &[Vertex],
+    ) -> Self {
         // Init shaders.
         let vs_src = include_str!("shaders/shader.vert");
         let fs_src = include_str!("shaders/shader.frag");
@@ -39,7 +48,17 @@ impl PointsRenderer {
         let vs_module = device.create_shader_module(&vs_data);
         let fs_module = device.create_shader_module(&fs_data);
 
-        // // Init pipeline.
+        // Upload vertex data.
+        let vertex_data_bytes = unsafe {
+            let len = vertex_data.len() * std::mem::size_of::<Vertex>();
+            let ptr = vertex_data.as_ptr() as *const u8;
+            std::slice::from_raw_parts(ptr, len)
+        };
+
+        let vertex_buffer =
+            device.create_buffer_with_data(vertex_data_bytes, wgpu::BufferUsage::VERTEX);
+
+        // Init pipeline.
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 bind_group_layouts: &[],
@@ -62,7 +81,7 @@ impl PointsRenderer {
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
             }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+            primitive_topology: wgpu::PrimitiveTopology::PointList,
             color_states: &[wgpu::ColorStateDescriptor {
                 format: swap_chain_desc.format,
                 color_blend: wgpu::BlendDescriptor::REPLACE,
@@ -72,18 +91,30 @@ impl PointsRenderer {
             depth_stencil_state: None,
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[],
+                vertex_buffers: &[wgpu::VertexBufferDescriptor {
+                    stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+                    step_mode: wgpu::InputStepMode::Vertex,
+                    attributes: &[wgpu::VertexAttributeDescriptor {
+                        offset: 0,
+                        shader_location: 0,
+                        format: wgpu::VertexFormat::Float3,
+                    }],
+                }],
             },
             sample_count: 1,
             sample_mask: !0,
             alpha_to_coverage_enabled: false,
         });
 
-        Self { render_pipeline }
+        Self {
+            render_pipeline,
+            vertex_buffer,
+        }
     }
 
     pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
         render_pass.draw(0..3, 0..1);
     }
 }

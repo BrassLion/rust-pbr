@@ -16,3 +16,5 @@ winit = "0.22.1"
 wgpu = "0.5.0"
 
 shaderc = "0.6.2"
+
+nalgebra = "0.21.0"

@@ -1,17 +1,17 @@
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::{Window, WindowBuilder},
 };
 
-use crate::graphics::*;
+use super::*;
 
 pub trait RenderSystem: 'static + Sized {
     fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self;
 
     fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device);
 
-    fn update(&mut self, event: &WindowEvent);
+    fn handle_event(&mut self, window: &Window, event: &WindowEvent);
     fn render(
         &mut self,
         frame: &wgpu::SwapChainOutput,
@@ -25,7 +25,7 @@ pub fn run<R: RenderSystem>() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     // Init render state.
-    let mut render_state = futures::executor::block_on(render_state::RenderState::new(&window));
+    let mut render_state = futures::executor::block_on(RenderState::new(&window));
 
     let mut renderer = R::init(&render_state.swap_chain_desc, &render_state.device);
 
@@ -47,27 +47,23 @@ pub fn run<R: RenderSystem>() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == window.id() =>
-            /*if !state.input(event)*/
-            {
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => render_state.resize(*physical_size),
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        render_state.resize(**new_inner_size)
-                    }
-                    _ => renderer.update(event),
+            } if window_id == window.id() => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state: ElementState::Pressed,
+                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            ..
+                        },
+                    ..
+                } => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(physical_size) => render_state.resize(*physical_size),
+                WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                    render_state.resize(**new_inner_size)
                 }
-            }
+                _ => renderer.handle_event(&window, event),
+            },
             _ => {}
         }
     });

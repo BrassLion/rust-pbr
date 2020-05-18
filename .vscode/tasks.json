@@ -4,6 +4,9 @@
         {
             "type": "cargo",
             "command": "run",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            },
             "problemMatcher": [
                 "$rustc"
             ],

@@ -113,10 +113,5 @@ impl graphics::RenderSystem for ExampleRenderer {
 }
 
 fn main() {
-    let img = image::open("/Users/kudansam/Downloads/3Ddataset/shoe/shoe_9/Shoe_9_A1_H1_S1.bmp")
-        .unwrap()
-        .to_rgba();
-    let img_dimensions = img.dimensions();
-
     graphics::run::<ExampleRenderer>();
 }

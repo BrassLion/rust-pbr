@@ -1,18 +1,24 @@
 mod graphics;
 
-struct ExampleRenderer {
-    camera: graphics::Camera,
-    points_renderer: graphics::PointsRenderer,
+use specs::prelude::*;
+
+struct ExampleRenderLoop {
+    world: World,
+    dispatcher: Dispatcher<'static, 'static>,
 }
 
-impl graphics::RenderSystem for ExampleRenderer {
-    fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self {
+impl graphics::RenderLoopEvent for ExampleRenderLoop {
+    fn init(window: &winit::window::Window) -> Self {
+        // Init rendering state.
+        let render_state = futures::executor::block_on(graphics::RenderState::new(&window));
+
+        // Create camera.
         let camera_position = nalgebra::Point3::new(1.0, 0.0, 1.0);
         let camera_target = nalgebra::Point3::new(0.0, 0.0, 0.0);
         let camera_up = nalgebra::Vector3::y_axis();
 
         let camera = graphics::Camera::new(
-            &device,
+            &render_state.device,
             &camera_position,
             &camera_target,
             &camera_up,
@@ -22,6 +28,7 @@ impl graphics::RenderSystem for ExampleRenderer {
             1000.0,
         );
 
+        // Create mesh.
         let vertices = &[
             graphics::Vertex {
                 position: [-0.5, -0.5, -0.5],
@@ -61,57 +68,59 @@ impl graphics::RenderSystem for ExampleRenderer {
             },
         ];
 
-        let points_renderer = graphics::PointsRenderer::new(&camera, sc_desc, device, vertices);
+        // Create render system.
+        let render_system = graphics::RenderSystem::new(
+            &render_state.device,
+            &render_state.swap_chain_desc,
+            &camera,
+        );
 
-        Self {
-            camera,
-            points_renderer,
-        }
+        let dispatcher = DispatcherBuilder::new()
+            .with(render_system, "render_system", &[])
+            .build();
+
+        // Create world.
+        let mut world = World::new();
+
+        world.register::<graphics::Mesh>();
+
+        world
+            .create_entity()
+            .with(graphics::Mesh::new(&render_state.device, vertices))
+            .build();
+
+        // Pass render state into ECS as last step.
+        world.insert(render_state);
+
+        world.insert(camera);
+
+        Self { world, dispatcher }
     }
 
-    fn resize(&mut self, _sc_desc: &wgpu::SwapChainDescriptor, _device: &wgpu::Device) {}
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        let mut render_state: WriteExpect<graphics::RenderState> = self.world.system_data();
+
+        render_state.resize(new_size);
+    }
 
     fn handle_event(&mut self, window: &winit::window::Window, event: &winit::event::WindowEvent) {
         match event {
             winit::event::WindowEvent::CursorMoved { .. }
             | winit::event::WindowEvent::MouseInput { .. }
             | winit::event::WindowEvent::MouseWheel { .. } => {
-                self.camera.handle_event(window, event)
+                let mut camera: WriteExpect<graphics::Camera> = self.world.system_data();
+
+                camera.handle_event(window, event);
             }
             _ => {}
         };
     }
 
-    fn render(
-        &mut self,
-        frame: &wgpu::SwapChainOutput,
-        device: &wgpu::Device,
-    ) -> wgpu::CommandBuffer {
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });
-
-        self.camera.update(&device, &mut encoder);
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
-                    resolve_target: None,
-                    load_op: wgpu::LoadOp::Clear,
-                    store_op: wgpu::StoreOp::Store,
-                    clear_color: wgpu::Color::BLACK,
-                }],
-                depth_stencil_attachment: None,
-            });
-
-            self.points_renderer.draw(&self.camera, &mut render_pass);
-        }
-
-        encoder.finish()
+    fn render(&mut self) {
+        self.dispatcher.dispatch(&mut self.world);
     }
 }
 
 fn main() {
-    graphics::run::<ExampleRenderer>();
+    graphics::run::<ExampleRenderLoop>();
 }

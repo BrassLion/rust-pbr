@@ -1,24 +1,15 @@
 use super::*;
+use specs::prelude::*;
 
-pub struct PointsRenderer {
+pub struct RenderSystem {
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-
-    num_vertices: u32,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct Vertex {
-    pub position: [f32; 3],
-}
-
-impl PointsRenderer {
+impl RenderSystem {
     pub fn new(
-        camera: &Camera,
-        swap_chain_desc: &wgpu::SwapChainDescriptor,
         device: &wgpu::Device,
-        vertex_data: &[Vertex],
+        swap_chain_desc: &wgpu::SwapChainDescriptor,
+        camera: &Camera,
     ) -> Self {
         // Init shaders.
         let vs_src = include_str!("shaders/shader.vert");
@@ -54,16 +45,6 @@ impl PointsRenderer {
 
         let vs_module = device.create_shader_module(&vs_data);
         let fs_module = device.create_shader_module(&fs_data);
-
-        // Upload vertex data.
-        let vertex_data_bytes = unsafe {
-            let len = vertex_data.len() * std::mem::size_of::<Vertex>();
-            let ptr = vertex_data.as_ptr() as *const u8;
-            std::slice::from_raw_parts(ptr, len)
-        };
-
-        let vertex_buffer =
-            device.create_buffer_with_data(vertex_data_bytes, wgpu::BufferUsage::VERTEX);
 
         // Init pipeline.
         let render_pipeline_layout =
@@ -114,16 +95,62 @@ impl PointsRenderer {
         });
 
         Self {
-            render_pipeline,
-            vertex_buffer,
-            num_vertices: vertex_data.len() as u32,
+            render_pipeline: render_pipeline,
         }
     }
+}
 
-    pub fn draw<'a>(&'a self, camera: &'a Camera, render_pass: &mut wgpu::RenderPass<'a>) {
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
-        render_pass.set_bind_group(0, &camera.uniform_bind_group, &[]);
-        render_pass.draw(0..self.num_vertices, 0..1);
+impl<'a> System<'a> for RenderSystem {
+    type SystemData = (
+        WriteExpect<'a, RenderState>,
+        WriteExpect<'a, Camera>,
+        ReadStorage<'a, Mesh>,
+    );
+
+    fn run(&mut self, data: Self::SystemData) {
+        let (mut render_state, mut camera, mesh) = data;
+
+        // Start new command buffer.
+        let frame = render_state
+            .swap_chain
+            .get_next_texture()
+            .expect("Timeout getting texture");
+
+        let mut encoder =
+            render_state
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
+
+        // Update the scene camera transform.
+        camera.update(&render_state.device, &mut encoder);
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &frame.view,
+                    resolve_target: None,
+                    load_op: wgpu::LoadOp::Clear,
+                    store_op: wgpu::StoreOp::Store,
+                    clear_color: wgpu::Color::BLACK,
+                }],
+                depth_stencil_attachment: None,
+            });
+
+            // Render all meshes.
+            for mesh in (&mesh).join() {
+                render_pass.set_pipeline(&self.render_pipeline);
+                render_pass.set_vertex_buffer(0, &mesh.vertex_buffer, 0, 0);
+                render_pass.set_bind_group(0, &camera.uniform_bind_group, &[]);
+
+                render_pass.draw(0..mesh.num_vertices, 0..1);
+            }
+        }
+
+        // Submit command buffer to the render queue.
+        let command_buffer = encoder.finish();
+
+        render_state.queue.submit(&[command_buffer]);
     }
 }

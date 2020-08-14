@@ -1,10 +1,11 @@
 pub mod camera;
-pub mod renderer_points;
-pub mod renderer_system;
-
-mod render_state;
+pub mod mesh;
+pub mod render_loop;
+pub mod render_state;
+pub mod render_system;
 
 pub use camera::*;
+pub use mesh::*;
+pub use render_loop::*;
 pub use render_state::*;
-pub use renderer_points::*;
-pub use renderer_system::*;
+pub use render_system::*;

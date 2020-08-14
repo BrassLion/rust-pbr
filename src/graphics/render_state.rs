@@ -1,4 +1,5 @@
 use winit::window::Window;
+
 pub struct RenderState {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,

@@ -4,44 +4,29 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use super::*;
+pub trait RenderLoopEvent: 'static + Sized {
+    fn init(window: &Window) -> Self;
 
-pub trait RenderSystem: 'static + Sized {
-    fn init(sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device) -> Self;
-
-    fn resize(&mut self, sc_desc: &wgpu::SwapChainDescriptor, device: &wgpu::Device);
+    fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>);
 
     fn handle_event(&mut self, window: &Window, event: &WindowEvent);
-    fn render(
-        &mut self,
-        frame: &wgpu::SwapChainOutput,
-        device: &wgpu::Device,
-    ) -> wgpu::CommandBuffer;
+
+    fn render(&mut self);
 }
 
-pub fn run<R: RenderSystem>() {
+pub fn run<R: RenderLoopEvent>() {
     // Init window.
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    // Init render state.
-    let mut render_state = futures::executor::block_on(RenderState::new(&window));
-
-    let mut renderer = R::init(&render_state.swap_chain_desc, &render_state.device);
+    let mut render_system = R::init(&window);
 
     // Run event loop.
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
             Event::RedrawRequested(_) => {
-                let frame = render_state
-                    .swap_chain
-                    .get_next_texture()
-                    .expect("Timeout getting texture");
-
-                let command_buffer = renderer.render(&frame, &render_state.device);
-
-                render_state.queue.submit(&[command_buffer]);
+                render_system.render();
             }
             Event::MainEventsCleared => window.request_redraw(),
             Event::WindowEvent {
@@ -58,11 +43,11 @@ pub fn run<R: RenderSystem>() {
                         },
                     ..
                 } => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(physical_size) => render_state.resize(*physical_size),
+                WindowEvent::Resized(physical_size) => render_system.resize(*physical_size),
                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                    render_state.resize(**new_inner_size)
+                    render_system.resize(**new_inner_size)
                 }
-                _ => renderer.handle_event(&window, event),
+                _ => render_system.handle_event(&window, event),
             },
             _ => {}
         }

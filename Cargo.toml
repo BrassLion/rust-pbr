@@ -18,3 +18,5 @@ wgpu = "0.5.0"
 shaderc = "0.6.2"
 
 nalgebra = "0.21.0"
+
+specs = "0.16.1"

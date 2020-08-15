@@ -32,24 +32,21 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         let model_data = include_bytes!("../res/DamagedHelmet.glb");
 
         let mesh = graphics::Mesh::new_from_glb(&render_state.device, model_data);
+        let material =
+            graphics::Material::new(&render_state.device, &render_state.swap_chain_desc, &camera);
 
         // Create render system.
-        let render_system = graphics::RenderSystem::new(
-            &render_state.device,
-            &render_state.swap_chain_desc,
-            &camera,
-        );
-
         let dispatcher = DispatcherBuilder::new()
-            .with(render_system, "render_system", &[])
+            .with(graphics::RenderSystem, "render_system", &[])
             .build();
 
         // Create world.
         let mut world = World::new();
 
         world.register::<graphics::Mesh>();
+        world.register::<graphics::Material>();
 
-        world.create_entity().with(mesh).build();
+        world.create_entity().with(mesh).with(material).build();
 
         // Pass render state into ECS as last step.
         world.insert(render_state);

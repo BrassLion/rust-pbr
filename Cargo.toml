@@ -20,3 +20,5 @@ shaderc = "0.6.2"
 nalgebra = "0.21.0"
 
 specs = "0.16.1"
+
+gltf = "0.15.2"

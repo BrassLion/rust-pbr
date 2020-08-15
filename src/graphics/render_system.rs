@@ -69,7 +69,7 @@ impl RenderSystem {
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
             }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+            primitive_topology: wgpu::PrimitiveTopology::TriangleStrip,
             color_states: &[wgpu::ColorStateDescriptor {
                 format: swap_chain_desc.format,
                 color_blend: wgpu::BlendDescriptor::REPLACE,
@@ -78,7 +78,7 @@ impl RenderSystem {
             }],
             depth_stencil_state: None,
             vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
+                index_format: wgpu::IndexFormat::Uint32,
                 vertex_buffers: &[wgpu::VertexBufferDescriptor {
                     stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::InputStepMode::Vertex,
@@ -144,7 +144,15 @@ impl<'a> System<'a> for RenderSystem {
                 render_pass.set_vertex_buffer(0, &mesh.vertex_buffer, 0, 0);
                 render_pass.set_bind_group(0, &camera.uniform_bind_group, &[]);
 
-                render_pass.draw(0..mesh.num_vertices, 0..1);
+                match &mesh.index_buffer {
+                    Some(index_buffer) => {
+                        render_pass.set_index_buffer(&index_buffer, 0, 0);
+                        render_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);
+                    }
+                    None => {
+                        render_pass.draw(0..mesh.num_vertices, 0..1);
+                    }
+                }
             }
         }
 

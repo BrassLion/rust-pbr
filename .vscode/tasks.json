@@ -4,6 +4,7 @@
         {
             "type": "cargo",
             "command": "run",
+            "args": ["--release"],
             "env": {
                 "RUST_BACKTRACE": "1"
             },

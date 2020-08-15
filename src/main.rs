@@ -29,44 +29,9 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         );
 
         // Create mesh.
-        let vertices = &[
-            graphics::Vertex {
-                position: [-0.5, -0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [-0.5, 0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, 0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [-0.5, -0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, 0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, -0.5, -0.5],
-            },
-            graphics::Vertex {
-                position: [-0.5, -0.5, 0.5],
-            },
-            graphics::Vertex {
-                position: [-0.5, 0.5, 0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, 0.5, 0.5],
-            },
-            graphics::Vertex {
-                position: [-0.5, -0.5, 0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, 0.5, 0.5],
-            },
-            graphics::Vertex {
-                position: [0.5, -0.5, 0.5],
-            },
-        ];
+        let model_data = include_bytes!("../res/DamagedHelmet.glb");
+
+        let mesh = graphics::Mesh::new_from_glb(&render_state.device, model_data);
 
         // Create render system.
         let render_system = graphics::RenderSystem::new(
@@ -84,10 +49,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         world.register::<graphics::Mesh>();
 
-        world
-            .create_entity()
-            .with(graphics::Mesh::new(&render_state.device, vertices))
-            .build();
+        world.create_entity().with(mesh).build();
 
         // Pass render state into ECS as last step.
         world.insert(render_state);

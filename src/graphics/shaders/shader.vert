@@ -16,5 +16,5 @@ layout(location = 0) out VS_OUT
 void main() {
     gl_Position = u_view_proj * vec4(i_position, 1.0);
 
-    vs_out.normal = (u_view_proj * vec4(i_normal, 1.0)).xyz;
+    vs_out.normal = i_normal;
 }

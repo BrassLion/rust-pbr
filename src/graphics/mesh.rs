@@ -6,15 +6,12 @@ pub struct Mesh {
     pub num_vertices: u32,
     pub num_indices: u32,
 }
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 3],
-}
-
-#[derive(Debug, PartialEq)]
-pub enum MeshLoadError {
-    InvalidFileType,
+    pub normal: [f32; 3],
 }
 
 impl Component for Mesh {
@@ -73,13 +70,14 @@ impl Mesh {
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
-                // Read vertices.
-                if let Some(iter) = reader.read_positions() {
-                    for vertex_position in iter {
-                        vertices.push(Vertex {
-                            position: vertex_position,
-                        });
-                    }
+                let pos_iter = reader.read_positions().unwrap();
+                let norm_iter = reader.read_normals().unwrap();
+                // Read vertices and indices.
+                for (vert_pos, vert_norm) in pos_iter.zip(norm_iter) {
+                    vertices.push(Vertex {
+                        position: vert_pos,
+                        normal: vert_norm,
+                    });
                 }
 
                 // Read indices.

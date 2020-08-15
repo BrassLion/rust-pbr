@@ -7,12 +7,27 @@ impl<'a> System<'a> for RenderSystem {
     type SystemData = (
         WriteExpect<'a, RenderState>,
         WriteExpect<'a, Camera>,
+        ReadExpect<'a, Texture>,
         ReadStorage<'a, Mesh>,
         ReadStorage<'a, Material>,
     );
 
+    fn setup(&mut self, world: &mut World) {
+        // Create depth texture.
+        let depth_tex;
+
+        {
+            let render_state: WriteExpect<RenderState> = world.system_data();
+
+            depth_tex =
+                Texture::new_depth_texture(&render_state.device, &render_state.swap_chain_desc);
+        }
+
+        world.insert(depth_tex);
+    }
+
     fn run(&mut self, data: Self::SystemData) {
-        let (mut render_state, mut camera, mesh, material) = data;
+        let (mut render_state, mut camera, depth_texture, mesh, material) = data;
 
         // Start new command buffer.
         let frame = render_state
@@ -39,7 +54,15 @@ impl<'a> System<'a> for RenderSystem {
                     store_op: wgpu::StoreOp::Store,
                     clear_color: wgpu::Color::BLACK,
                 }],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                    attachment: &depth_texture.view,
+                    depth_load_op: wgpu::LoadOp::Clear,
+                    depth_store_op: wgpu::StoreOp::Store,
+                    clear_depth: 1.0,
+                    stencil_load_op: wgpu::LoadOp::Clear,
+                    stencil_store_op: wgpu::StoreOp::Store,
+                    clear_stencil: 0,
+                }),
             });
 
             // Render all meshes.

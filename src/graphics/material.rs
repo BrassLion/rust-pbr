@@ -67,8 +67,8 @@ impl Material {
                 entry_point: "main",
             }),
             rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: wgpu::CullMode::Back,
                 depth_bias: 0,
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
@@ -80,17 +80,34 @@ impl Material {
                 alpha_blend: wgpu::BlendDescriptor::REPLACE,
                 write_mask: wgpu::ColorWrite::ALL,
             }],
-            depth_stencil_state: None,
+            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil_front: wgpu::StencilStateFaceDescriptor::IGNORE,
+                stencil_back: wgpu::StencilStateFaceDescriptor::IGNORE,
+                stencil_read_mask: 0,
+                stencil_write_mask: 0,
+            }),
             vertex_state: wgpu::VertexStateDescriptor {
                 index_format: wgpu::IndexFormat::Uint32,
                 vertex_buffers: &[wgpu::VertexBufferDescriptor {
                     stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::InputStepMode::Vertex,
-                    attributes: &[wgpu::VertexAttributeDescriptor {
-                        offset: 0,
-                        shader_location: 0,
-                        format: wgpu::VertexFormat::Float3,
-                    }],
+                    attributes: &[
+                        wgpu::VertexAttributeDescriptor {
+                            // Position
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float3,
+                        },
+                        wgpu::VertexAttributeDescriptor {
+                            // Normal
+                            offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float3,
+                        },
+                    ],
                 }],
             },
             sample_count: 1,

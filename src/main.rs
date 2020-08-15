@@ -36,7 +36,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             graphics::Material::new(&render_state.device, &render_state.swap_chain_desc, &camera);
 
         // Create render system.
-        let dispatcher = DispatcherBuilder::new()
+        let mut dispatcher = DispatcherBuilder::new()
             .with(graphics::RenderSystem, "render_system", &[])
             .build();
 
@@ -52,6 +52,8 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         world.insert(render_state);
 
         world.insert(camera);
+
+        dispatcher.setup(&mut world);
 
         Self { world, dispatcher }
     }

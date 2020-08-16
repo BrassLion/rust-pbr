@@ -1,4 +1,3 @@
-
 use super::*;
 use specs::prelude::*;
 
@@ -11,11 +10,17 @@ pub struct TransformBindGroup {
     pub view_proj_matrix: nalgebra::Matrix4<f32>,
 }
 
+pub struct LightingBindGroup {
+    pub position: nalgebra::Vector3<f32>,
+}
+
 pub struct Material {
     pub render_pipeline: wgpu::RenderPipeline,
     pub params_bind_group: wgpu::BindGroup,
     pub transform_bind_group: wgpu::BindGroup,
     pub transform_bind_group_buffer: wgpu::Buffer,
+    pub lighting_bind_group: wgpu::BindGroup,
+    pub lighting_bind_group_buffer: wgpu::Buffer,
 }
 
 impl Component for Material {
@@ -23,8 +28,11 @@ impl Component for Material {
 }
 
 impl Material {
-    pub fn new(device: &wgpu::Device, swap_chain_desc: &wgpu::SwapChainDescriptor, params: &PbrBindGroup) -> Self {
-
+    pub fn new(
+        device: &wgpu::Device,
+        swap_chain_desc: &wgpu::SwapChainDescriptor,
+        params: &PbrBindGroup,
+    ) -> Self {
         // Init shaders.
         let vs_src = include_str!("shaders/shader.vert");
         let fs_src = include_str!("shaders/shader.frag");
@@ -63,13 +71,11 @@ impl Material {
         // Init bind groups.
 
         // Transform buffers.
-        let transform_buffer = device.create_buffer(
-            &wgpu::BufferDescriptor {
-                label: None,
-                size: std::mem::size_of::<TransformBindGroup>() as u64,
-                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-            }
-        );
+        let transform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<TransformBindGroup>() as u64,
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+        });
 
         let transform_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -95,41 +101,80 @@ impl Material {
         });
 
         // Material bind group.
-        let params_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            bindings: &[wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::SampledTexture {
-                    dimension: wgpu::TextureViewDimension::D2,
-                    component_type: wgpu::TextureComponentType::Float,
-                    multisampled: false,
-                },
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStage::FRAGMENT,
-                ty: wgpu::BindingType::Sampler { comparison: false },
-            }],
-            label: None,
-        });
+        let params_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                bindings: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::SampledTexture {
+                            dimension: wgpu::TextureViewDimension::D2,
+                            component_type: wgpu::TextureComponentType::Float,
+                            multisampled: false,
+                        },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler { comparison: false },
+                    },
+                ],
+                label: None,
+            });
 
         let params_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &params_bind_group_layout,
-            bindings: &[wgpu::Binding {
-                binding: 1,
-                resource: wgpu::BindingResource::TextureView(&params.ambient_texture.view),
-            },
-            wgpu::Binding {
-                binding: 2,
-                resource: wgpu::BindingResource::Sampler(&params.ambient_texture.sampler),
-            }],
+            bindings: &[
+                wgpu::Binding {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&params.ambient_texture.view),
+                },
+                wgpu::Binding {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&params.ambient_texture.sampler),
+                },
+            ],
             label: Some("params_bind_group"),
+        });
+
+        // Lighting bind group.
+        let lighting_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: std::mem::size_of::<LightingBindGroup>() as u64,
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+        });
+
+        let lighting_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                bindings: &[wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::UniformBuffer { dynamic: false },
+                }],
+                label: Some("lighting_bind_group_layout"),
+            });
+
+        let lighting_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &lighting_bind_group_layout,
+            bindings: &[wgpu::Binding {
+                binding: 2,
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &lighting_buffer,
+                    // FYI: you can share a single buffer between bindings.
+                    range: 0..std::mem::size_of::<LightingBindGroup>() as wgpu::BufferAddress,
+                },
+            }],
+            label: Some("lighting_bind_group"),
         });
 
         // Init pipeline.
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                bind_group_layouts: &[&transform_bind_group_layout, &params_bind_group_layout],
+                bind_group_layouts: &[
+                    &transform_bind_group_layout,
+                    &params_bind_group_layout,
+                    &lighting_bind_group_layout,
+                ],
             });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -170,21 +215,28 @@ impl Material {
                 vertex_buffers: &[wgpu::VertexBufferDescriptor {
                     stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::InputStepMode::Vertex,
-                    attributes: &[wgpu::VertexAttributeDescriptor { // Position
-                        offset: 0,
-                        shader_location: 0,
-                        format: wgpu::VertexFormat::Float3,
-                    },
-                    wgpu::VertexAttributeDescriptor { // Normal
-                        offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
-                        shader_location: 1,
-                        format: wgpu::VertexFormat::Float3,
-                    },
-                    wgpu::VertexAttributeDescriptor { // Tex Coord
-                        offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
-                        shader_location: 2,
-                        format: wgpu::VertexFormat::Float2,
-                    }],
+                    attributes: &[
+                        wgpu::VertexAttributeDescriptor {
+                            // Position
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float3,
+                        },
+                        wgpu::VertexAttributeDescriptor {
+                            // Normal
+                            offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
+                            shader_location: 1,
+                            format: wgpu::VertexFormat::Float3,
+                        },
+                        wgpu::VertexAttributeDescriptor {
+                            // Tex Coord
+                            offset: (std::mem::size_of::<[f32; 3]>()
+                                + std::mem::size_of::<[f32; 3]>())
+                                as wgpu::BufferAddress,
+                            shader_location: 2,
+                            format: wgpu::VertexFormat::Float2,
+                        },
+                    ],
                 }],
             },
             sample_count: 1,
@@ -197,6 +249,8 @@ impl Material {
             params_bind_group: params_bind_group,
             transform_bind_group: transform_bind_group,
             transform_bind_group_buffer: transform_buffer,
+            lighting_bind_group: lighting_bind_group,
+            lighting_bind_group_buffer: lighting_buffer,
         }
     }
 }

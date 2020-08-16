@@ -14,11 +14,16 @@ layout(location = 0) out VS_OUT
 {
     vec3 normal;
     vec2 tex_coord;
+    vec3 world_pos;
 } vs_out;
 
 void main() {
-    gl_Position = u_view_proj * u_model * vec4(i_position, 1.0);
+
+    vec4 position = vec4(i_position, 1.0);
+
+    gl_Position = u_view_proj * u_model * position;
 
     vs_out.normal = i_normal;
     vs_out.tex_coord = i_tex_coord;
+    vs_out.world_pos = (u_model * position).xyz; 
 }

@@ -1,4 +1,5 @@
-#[macro_use] extern crate itertools;
+#[macro_use]
+extern crate itertools;
 
 mod graphics;
 
@@ -9,23 +10,28 @@ struct ExampleRenderLoop {
     dispatcher: Dispatcher<'static, 'static>,
 }
 
-struct RotationSystem;
+struct RotateLightSystem;
 
-impl<'a> System<'a> for RotationSystem {
-    
-    type SystemData = WriteStorage<'a, graphics::Pose>;
+impl<'a> System<'a> for RotateLightSystem {
+    type SystemData = (
+        WriteStorage<'a, graphics::Pose>,
+        WriteStorage<'a, graphics::Light>,
+    );
 
-    fn run(&mut self, mut poses: Self::SystemData) {
+    fn run(&mut self, data: Self::SystemData) {
+        let (mut pose, light) = data;
 
-        for pose in (&mut poses).join() {
-            pose.model_matrix.append_rotation_wrt_center_mut(&nalgebra::UnitQuaternion::new(nalgebra::Vector3::new(0.0, 0.0, 0.01)))
+        for (pose, _) in (&mut pose, &light).join() {
+            pose.model_matrix.append_rotation_wrt_point_mut(
+                &nalgebra::UnitQuaternion::new(nalgebra::Vector3::new(0.0, 0.0, 0.01)),
+                &nalgebra::Point3::new(0.0, 0.0, 0.0),
+            )
         }
     }
 }
 
 impl graphics::RenderLoopEvent for ExampleRenderLoop {
     fn init(window: &winit::window::Window) -> Self {
-
         // Init rendering state.
         let render_state = futures::executor::block_on(graphics::RenderState::new(&window));
 
@@ -35,7 +41,6 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         let camera_up = nalgebra::Vector3::y_axis();
 
         let camera = graphics::Camera::new(
-            &render_state.device,
             &camera_position,
             &camera_target,
             &camera_up,
@@ -47,16 +52,45 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Create render system.
         let mut dispatcher = DispatcherBuilder::new()
-            .with(RotationSystem, "rot_system", &[])
-            .with(graphics::RenderSystem, "render_system", &["rot_system"]).build();
+            .with(RotateLightSystem, "rot_system", &[])
+            .with(graphics::RenderSystem, "render_system", &["rot_system"])
+            .build();
 
         // Create world.
         let mut world = World::new();
 
         // Add model to world.
-        let model_data = include_bytes!("../res/DamagedHelmet.glb");
+        let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
+        let cube_data = include_bytes!("../res/BoxTextured.glb");
 
-        graphics::ModelLoader::add_glb_to_world(&render_state.device, &render_state.swap_chain_desc, &render_state.queue, model_data, &mut world);
+        graphics::ModelLoader::build_entity_from_glb(
+            &render_state.device,
+            &render_state.swap_chain_desc,
+            &render_state.queue,
+            helmet_data,
+            &mut world,
+        )
+        .with(graphics::Pose {
+            model_matrix: nalgebra::Similarity3::identity(),
+        })
+        .build();
+
+        graphics::ModelLoader::build_entity_from_glb(
+            &render_state.device,
+            &render_state.swap_chain_desc,
+            &render_state.queue,
+            cube_data,
+            &mut world,
+        )
+        .with(graphics::Pose {
+            model_matrix: nalgebra::Similarity3::from_parts(
+                nalgebra::Translation3::new(3.0, 0.0, 0.0),
+                nalgebra::UnitQuaternion::identity(),
+                1.0,
+            ),
+        })
+        .with(graphics::Light {})
+        .build();
 
         // Pass render state into ECS as last step.
         world.insert(render_state);
@@ -65,15 +99,11 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         dispatcher.setup(&mut world);
 
-        Self {
-            world,
-            dispatcher,
-        }
+        Self { world, dispatcher }
     }
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-
-        let mut render_state: WriteExpect<graphics::RenderState> = self.world.system_data(); 
+        let mut render_state: WriteExpect<graphics::RenderState> = self.world.system_data();
 
         render_state.resize(new_size);
     }
@@ -83,7 +113,6 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             winit::event::WindowEvent::CursorMoved { .. }
             | winit::event::WindowEvent::MouseInput { .. }
             | winit::event::WindowEvent::MouseWheel { .. } => {
-
                 let mut camera: WriteExpect<graphics::Camera> = self.world.system_data();
 
                 camera.handle_event(window, event);
@@ -96,7 +125,6 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         self.dispatcher.dispatch(&mut self.world);
     }
 }
-
 
 fn main() {
     graphics::run::<ExampleRenderLoop>();

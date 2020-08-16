@@ -1,4 +1,3 @@
-
 use specs::prelude::*;
 
 pub struct Mesh {
@@ -16,15 +15,12 @@ pub struct Vertex {
     pub tex_coord: [f32; 2],
 }
 
-
 impl Component for Mesh {
     type Storage = VecStorage<Self>;
 }
 
-impl Mesh
-{
+impl Mesh {
     pub fn new(device: &wgpu::Device, vertex_data: &[Vertex], index_data: Option<&[u32]>) -> Self {
-
         // Upload vertex data.
         let vertex_data_bytes = unsafe {
             let len = vertex_data.len() * std::mem::size_of::<Vertex>();
@@ -37,24 +33,24 @@ impl Mesh
 
         // Upload index buffer if it exists.
         let index_buffer = match index_data {
-            None => None, 
+            None => None,
             Some(data) => {
-
                 let index_data_bytes = unsafe {
                     let len = data.len() * std::mem::size_of::<u32>();
                     let ptr = data.as_ptr() as *const u8;
                     std::slice::from_raw_parts(ptr, len)
                 };
 
-                let buffer = device.create_buffer_with_data(index_data_bytes, wgpu::BufferUsage::INDEX);
+                let buffer =
+                    device.create_buffer_with_data(index_data_bytes, wgpu::BufferUsage::INDEX);
 
                 Some(buffer)
-            },
+            }
         };
 
         let num_indices = match index_data {
             None => 0,
-            Some(data) => data.len()
+            Some(data) => data.len(),
         };
 
         Self {

@@ -19,7 +19,6 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(
-        device: &wgpu::Device,
         eye: &Point3<f32>,
         target: &Point3<f32>,
         up: &Vector3<f32>,
@@ -30,8 +29,6 @@ impl Camera {
     ) -> Self {
         let view_matrix = Isometry3::look_at_rh(eye, target, up);
         let proj_matrix = Perspective3::new(aspect_ratio, fov_y, z_near, z_far);
-
-        let view_proj_matrix = proj_matrix.as_matrix() * view_matrix.to_homogeneous();
 
         Self {
             view_matrix,

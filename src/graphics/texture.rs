@@ -1,21 +1,24 @@
-
-pub struct Texture
-{
-    texture: wgpu::Texture,
+pub struct Texture {
+    _texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 }
 
 impl Texture {
-    pub fn new_texture(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32, rgba_data: &[u8]) -> Self {
-
+    pub fn new_texture(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        rgba_data: &[u8],
+    ) -> Self {
         // Create texture.
         let size = wgpu::Extent3d {
             width: width,
             height: height,
             depth: 1,
         };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
+        let _texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
             size: size,
             array_layer_count: 1,
@@ -27,15 +30,12 @@ impl Texture {
         });
 
         // Upload data to texture.
-        let buffer = device.create_buffer_with_data(
-            &rgba_data,
-            wgpu::BufferUsage::COPY_SRC,
-        );
+        let buffer = device.create_buffer_with_data(&rgba_data, wgpu::BufferUsage::COPY_SRC);
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("texture_buffer_copy_encoder"),
         });
-        
+
         encoder.copy_buffer_to_texture(
             wgpu::BufferCopyView {
                 buffer: &buffer,
@@ -44,17 +44,17 @@ impl Texture {
                 rows_per_image: height,
             },
             wgpu::TextureCopyView {
-                texture: &texture,
+                texture: &_texture,
                 mip_level: 0,
                 array_layer: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             size,
         );
-        
+
         queue.submit(&[encoder.finish()]);
 
-        let view = texture.create_default_view();
+        let view = _texture.create_default_view();
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -69,14 +69,14 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture,
             view,
             sampler,
         }
     }
 
     pub fn new_depth_texture(device: &wgpu::Device, sc_desc: &wgpu::SwapChainDescriptor) -> Self {
-        let size = wgpu::Extent3d { 
+        let size = wgpu::Extent3d {
             width: sc_desc.width,
             height: sc_desc.height,
             depth: 1,
@@ -91,13 +91,13 @@ impl Texture {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT
-                | wgpu::TextureUsage::SAMPLED 
+                | wgpu::TextureUsage::SAMPLED
                 | wgpu::TextureUsage::COPY_SRC,
         };
 
-        let texture = device.create_texture(&desc);
+        let _texture = device.create_texture(&desc);
 
-        let view = texture.create_default_view();
+        let view = _texture.create_default_view();
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -112,7 +112,7 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture,
             view,
             sampler,
         }

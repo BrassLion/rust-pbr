@@ -1,5 +1,3 @@
-
-use super::*;
 use specs::prelude::*;
 
 pub struct Pose {

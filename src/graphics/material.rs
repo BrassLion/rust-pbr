@@ -1,8 +1,14 @@
+
 use super::*;
 use specs::prelude::*;
 
+pub struct PbrParams {
+    pub ambient_texture: Texture,
+}
+
 pub struct Material {
     pub render_pipeline: wgpu::RenderPipeline,
+    pub params_bind_group: wgpu::BindGroup,
 }
 
 impl Component for Material {
@@ -10,11 +16,8 @@ impl Component for Material {
 }
 
 impl Material {
-    pub fn new(
-        device: &wgpu::Device,
-        swap_chain_desc: &wgpu::SwapChainDescriptor,
-        camera: &Camera,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, swap_chain_desc: &wgpu::SwapChainDescriptor, camera: &Camera, params: &PbrParams) -> Self {
+
         // Init shaders.
         let vs_src = include_str!("shaders/shader.vert");
         let fs_src = include_str!("shaders/shader.frag");
@@ -50,10 +53,42 @@ impl Material {
         let vs_module = device.create_shader_module(&vs_data);
         let fs_module = device.create_shader_module(&fs_data);
 
+        // Init params uniform buffer.
+        let params_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            bindings: &[wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::SampledTexture {
+                    dimension: wgpu::TextureViewDimension::D2,
+                    component_type: wgpu::TextureComponentType::Float,
+                    multisampled: false,
+                },
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::Sampler { comparison: false },
+            }],
+            label: None,
+        });
+
+        let params_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &params_bind_group_layout,
+            bindings: &[wgpu::Binding {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(&params.ambient_texture.view),
+            },
+            wgpu::Binding {
+                binding: 2,
+                resource: wgpu::BindingResource::Sampler(&params.ambient_texture.sampler),
+            }],
+            label: Some("params_bind_group"),
+        });
+
         // Init pipeline.
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                bind_group_layouts: &[&camera.uniform_bind_group_layout],
+                bind_group_layouts: &[&camera.uniform_bind_group_layout, &params_bind_group_layout],
             });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -94,20 +129,21 @@ impl Material {
                 vertex_buffers: &[wgpu::VertexBufferDescriptor {
                     stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
                     step_mode: wgpu::InputStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttributeDescriptor {
-                            // Position
-                            offset: 0,
-                            shader_location: 0,
-                            format: wgpu::VertexFormat::Float3,
-                        },
-                        wgpu::VertexAttributeDescriptor {
-                            // Normal
-                            offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                            shader_location: 1,
-                            format: wgpu::VertexFormat::Float3,
-                        },
-                    ],
+                    attributes: &[wgpu::VertexAttributeDescriptor { // Position
+                        offset: 0,
+                        shader_location: 0,
+                        format: wgpu::VertexFormat::Float3,
+                    },
+                    wgpu::VertexAttributeDescriptor { // Normal
+                        offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
+                        shader_location: 1,
+                        format: wgpu::VertexFormat::Float3,
+                    },
+                    wgpu::VertexAttributeDescriptor { // Tex Coord
+                        offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
+                        shader_location: 2,
+                        format: wgpu::VertexFormat::Float2,
+                    }],
                 }],
             },
             sample_count: 1,
@@ -117,6 +153,7 @@ impl Material {
 
         Self {
             render_pipeline: render_pipeline,
+            params_bind_group: params_bind_group,
         }
     }
 }

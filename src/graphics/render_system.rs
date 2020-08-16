@@ -1,46 +1,48 @@
+
 use super::*;
 use specs::prelude::*;
 
 pub struct RenderSystem;
 
 impl<'a> System<'a> for RenderSystem {
-    type SystemData = (
-        WriteExpect<'a, RenderState>,
+
+    type SystemData = (WriteExpect<'a, RenderState>,
         WriteExpect<'a, Camera>,
         ReadExpect<'a, Texture>,
         ReadStorage<'a, Mesh>,
-        ReadStorage<'a, Material>,
-    );
+        ReadStorage<'a, Material>);
 
     fn setup(&mut self, world: &mut World) {
+        
         // Create depth texture.
         let depth_tex;
 
         {
             let render_state: WriteExpect<RenderState> = world.system_data();
 
-            depth_tex =
-                Texture::new_depth_texture(&render_state.device, &render_state.swap_chain_desc);
+            depth_tex = Texture::new_depth_texture(&render_state.device, &render_state.swap_chain_desc);
         }
 
         world.insert(depth_tex);
     }
 
     fn run(&mut self, data: Self::SystemData) {
-        let (mut render_state, mut camera, depth_texture, mesh, material) = data;
+        
+        let (mut render_state,
+            mut camera, 
+            depth_texture,
+            mesh,
+            material) = data;
 
         // Start new command buffer.
         let frame = render_state
-            .swap_chain
-            .get_next_texture()
-            .expect("Timeout getting texture");
+                    .swap_chain
+                    .get_next_texture()
+                    .expect("Timeout getting texture");
 
-        let mut encoder =
-            render_state
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Render Encoder"),
-                });
+        let mut encoder = render_state.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
         // Update the scene camera transform.
         camera.update(&render_state.device, &mut encoder);
@@ -64,12 +66,14 @@ impl<'a> System<'a> for RenderSystem {
                     clear_stencil: 0,
                 }),
             });
-
+            
             // Render all meshes.
             for (mesh, material) in (&mesh, &material).join() {
+                
                 render_pass.set_pipeline(&material.render_pipeline);
                 render_pass.set_vertex_buffer(0, &mesh.vertex_buffer, 0, 0);
                 render_pass.set_bind_group(0, &camera.uniform_bind_group, &[]);
+                render_pass.set_bind_group(1, &material.params_bind_group, &[]);
 
                 match &mesh.index_buffer {
                     Some(index_buffer) => {

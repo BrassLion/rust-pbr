@@ -2,13 +2,20 @@
 use super::*;
 use specs::prelude::*;
 
-pub struct PbrParams {
+pub struct PbrBindGroup {
     pub ambient_texture: Texture,
+}
+
+pub struct TransformBindGroup {
+    pub model_matrix: nalgebra::Matrix4<f32>,
+    pub view_proj_matrix: nalgebra::Matrix4<f32>,
 }
 
 pub struct Material {
     pub render_pipeline: wgpu::RenderPipeline,
     pub params_bind_group: wgpu::BindGroup,
+    pub transform_bind_group: wgpu::BindGroup,
+    pub transform_bind_group_buffer: wgpu::Buffer,
 }
 
 impl Component for Material {
@@ -16,7 +23,7 @@ impl Component for Material {
 }
 
 impl Material {
-    pub fn new(device: &wgpu::Device, swap_chain_desc: &wgpu::SwapChainDescriptor, camera: &Camera, params: &PbrParams) -> Self {
+    pub fn new(device: &wgpu::Device, swap_chain_desc: &wgpu::SwapChainDescriptor, params: &PbrBindGroup) -> Self {
 
         // Init shaders.
         let vs_src = include_str!("shaders/shader.vert");
@@ -53,7 +60,41 @@ impl Material {
         let vs_module = device.create_shader_module(&vs_data);
         let fs_module = device.create_shader_module(&fs_data);
 
-        // Init params uniform buffer.
+        // Init bind groups.
+
+        // Transform buffers.
+        let transform_buffer = device.create_buffer(
+            &wgpu::BufferDescriptor {
+                label: None,
+                size: std::mem::size_of::<TransformBindGroup>() as u64,
+                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            }
+        );
+
+        let transform_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                bindings: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX,
+                    ty: wgpu::BindingType::UniformBuffer { dynamic: false },
+                }],
+                label: Some("transform_bind_group_layout"),
+            });
+
+        let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &transform_bind_group_layout,
+            bindings: &[wgpu::Binding {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &transform_buffer,
+                    // FYI: you can share a single buffer between bindings.
+                    range: 0..std::mem::size_of::<TransformBindGroup>() as wgpu::BufferAddress,
+                },
+            }],
+            label: Some("transform_bind_group"),
+        });
+
+        // Material bind group.
         let params_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             bindings: &[wgpu::BindGroupLayoutEntry {
                 binding: 1,
@@ -88,7 +129,7 @@ impl Material {
         // Init pipeline.
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                bind_group_layouts: &[&camera.uniform_bind_group_layout, &params_bind_group_layout],
+                bind_group_layouts: &[&transform_bind_group_layout, &params_bind_group_layout],
             });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -154,6 +195,8 @@ impl Material {
         Self {
             render_pipeline: render_pipeline,
             params_bind_group: params_bind_group,
+            transform_bind_group: transform_bind_group,
+            transform_bind_group_buffer: transform_buffer,
         }
     }
 }

@@ -9,6 +9,20 @@ struct ExampleRenderLoop {
     dispatcher: Dispatcher<'static, 'static>,
 }
 
+struct RotationSystem;
+
+impl<'a> System<'a> for RotationSystem {
+    
+    type SystemData = WriteStorage<'a, graphics::Pose>;
+
+    fn run(&mut self, mut poses: Self::SystemData) {
+
+        for pose in (&mut poses).join() {
+            pose.model_matrix.append_rotation_wrt_center_mut(&nalgebra::UnitQuaternion::new(nalgebra::Vector3::new(0.0, 0.0, 0.01)))
+        }
+    }
+}
+
 impl graphics::RenderLoopEvent for ExampleRenderLoop {
     fn init(window: &winit::window::Window) -> Self {
 
@@ -32,7 +46,9 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         );
 
         // Create render system.
-        let mut dispatcher = DispatcherBuilder::new().with(graphics::RenderSystem, "render_system", &[]).build();
+        let mut dispatcher = DispatcherBuilder::new()
+            .with(RotationSystem, "rot_system", &[])
+            .with(graphics::RenderSystem, "render_system", &["rot_system"]).build();
 
         // Create world.
         let mut world = World::new();
@@ -40,7 +56,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         // Add model to world.
         let model_data = include_bytes!("../res/DamagedHelmet.glb");
 
-        graphics::ModelLoader::add_glb_to_world(&render_state.device, &render_state.swap_chain_desc, &render_state.queue, model_data, &mut world, &camera);
+        graphics::ModelLoader::add_glb_to_world(&render_state.device, &render_state.swap_chain_desc, &render_state.queue, model_data, &mut world);
 
         // Pass render state into ECS as last step.
         world.insert(render_state);

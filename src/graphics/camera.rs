@@ -1,8 +1,8 @@
 use nalgebra::*;
 
 pub struct Camera {
-    view_matrix: Isometry3<f32>,
-    proj_matrix: Perspective3<f32>,
+    pub view_matrix: Isometry3<f32>,
+    pub proj_matrix: Perspective3<f32>,
     camera_up: Vector3<f32>,
     camera_target: Vector3<f32>,
 
@@ -15,24 +15,6 @@ pub struct Camera {
     zoom_scaling_factor: f32,
     zoom_min_distance: f32,
     zoom_max_distance: f32,
-
-    pub uniform_buffer: wgpu::Buffer,
-    pub uniform_bind_group: wgpu::BindGroup,
-    pub uniform_bind_group_layout: wgpu::BindGroupLayout,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-struct Uniforms {
-    view_proj_matrix: Matrix4<f32>,
-}
-
-impl Uniforms {
-    fn new(vpmat: &Matrix4<f32>) -> Self {
-        Self {
-            view_proj_matrix: *vpmat,
-        }
-    }
 }
 
 impl Camera {
@@ -51,43 +33,6 @@ impl Camera {
 
         let view_proj_matrix = proj_matrix.as_matrix() * view_matrix.to_homogeneous();
 
-        let uniforms = &[Uniforms::new(&view_proj_matrix)];
-
-        // TODO: Replace this with a function.
-        let uniforms_data_bytes = unsafe {
-            let len = uniforms.len() * std::mem::size_of::<Uniforms>();
-            let ptr = uniforms.as_ptr() as *const u8;
-            std::slice::from_raw_parts(ptr, len)
-        };
-
-        let uniform_buffer = device.create_buffer_with_data(
-            uniforms_data_bytes,
-            wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-        );
-
-        let uniform_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                bindings: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStage::VERTEX,
-                    ty: wgpu::BindingType::UniformBuffer { dynamic: false },
-                }],
-                label: Some("uniform_bind_group_layout"),
-            });
-
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uniform_bind_group_layout,
-            bindings: &[wgpu::Binding {
-                binding: 0,
-                resource: wgpu::BindingResource::Buffer {
-                    buffer: &uniform_buffer,
-                    // FYI: you can share a single buffer between bindings.
-                    range: 0..std::mem::size_of_val(&uniforms) as wgpu::BufferAddress,
-                },
-            }],
-            label: Some("uniform_bind_group"),
-        });
-
         Self {
             view_matrix,
             proj_matrix,
@@ -101,9 +46,6 @@ impl Camera {
             zoom_scaling_factor: 0.05,
             zoom_min_distance: 1.0,
             zoom_max_distance: 10.0,
-            uniform_buffer,
-            uniform_bind_group,
-            uniform_bind_group_layout,
         }
     }
 
@@ -231,28 +173,5 @@ impl Camera {
             },
             _ => {}
         }
-    }
-
-    pub fn update(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder) {
-        let view_proj_matrix = self.proj_matrix.as_matrix() * self.view_matrix.to_homogeneous();
-
-        // TODO: Replace this with a function.
-        let uniforms_data_bytes = unsafe {
-            let uniform_data = view_proj_matrix.as_slice();
-            let len = std::mem::size_of_val(uniform_data);
-            let ptr = uniform_data.as_ptr() as *const u8;
-            std::slice::from_raw_parts(ptr, len)
-        };
-
-        let staging_buffer =
-            device.create_buffer_with_data(uniforms_data_bytes, wgpu::BufferUsage::COPY_SRC);
-
-        encoder.copy_buffer_to_buffer(
-            &staging_buffer,
-            0,
-            &self.uniform_buffer,
-            0,
-            std::mem::size_of::<Uniforms>() as wgpu::BufferAddress,
-        )
     }
 }

@@ -5,22 +5,26 @@ use specs::prelude::*;
 pub struct ModelLoader;
 
 impl ModelLoader {
-    pub fn add_glb_to_world(device: &wgpu::Device, sc_desc: &wgpu::SwapChainDescriptor, queue: &wgpu::Queue, glb_data: &[u8], world: &mut World, camera: &Camera) {
+    pub fn add_glb_to_world(device: &wgpu::Device, sc_desc: &wgpu::SwapChainDescriptor, queue: &wgpu::Queue, glb_data: &[u8], world: &mut World) {
         
         let (gltf, buffers, images) = gltf::import_slice(glb_data.as_ref()).unwrap();
 
         let mesh = ModelLoader::create_mesh(&device, &gltf, &buffers);
         
-        let pbr_params = PbrParams {
+        let pbr_params = PbrBindGroup {
             ambient_texture: ModelLoader::create_texture(&device, &queue, &images[0]),
         };        
 
-        let material = Material::new(&device, &sc_desc, camera, &pbr_params);
+        let material = Material::new(&device, &sc_desc, &pbr_params);
 
+        world.register::<Pose>();
         world.register::<Mesh>();
         world.register::<Material>();
 
         world.create_entity()
+            .with(Pose{
+                model_matrix: nalgebra::Similarity3::identity(),
+            })
             .with(mesh)
             .with(material)
             .build();

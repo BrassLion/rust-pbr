@@ -48,10 +48,12 @@ impl Renderable {
         let mut transform_data = TransformBindGroup {
             model_matrix: pose.model_matrix.to_homogeneous(),
             view_proj_matrix: camera.proj_matrix.as_matrix() * camera.view_matrix.to_homogeneous(),
+            camera_world_position: camera.view_matrix.inverse().translation.vector,
         };
 
         let lighting_data = LightingBindGroup {
             position: light_positions[0],
+            _padding: 0,
         };
 
         // Upload mesh transforms.
@@ -73,10 +75,10 @@ impl Renderable {
         let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
 
         render_pass.set_pipeline(&self.material.render_pipeline);
-        render_pass.set_vertex_buffer(0, &self.mesh.vertex_buffer, 0, 0);
         render_pass.set_bind_group(0, &self.material.transform_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.material.params_bind_group, &[]);
-        render_pass.set_bind_group(2, &self.material.lighting_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.material.lighting_bind_group, &[]);
+        render_pass.set_bind_group(2, &self.material.params_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, &self.mesh.vertex_buffer, 0, 0);
 
         match &self.mesh.index_buffer {
             Some(index_buffer) => {
@@ -99,8 +101,44 @@ impl Renderable {
 
         let mesh = Renderable::create_mesh(&device, &gltf, &buffers);
 
+        let mat = gltf.materials().next().unwrap();
+
         let pbr_params = PbrBindGroup {
-            ambient_texture: Renderable::create_texture(&device, &queue, &images[0]),
+            ao_texture: Renderable::create_texture(
+                &device,
+                &queue,
+                &images[mat.occlusion_texture().unwrap().texture().index()],
+            ),
+            albedo_texture: Renderable::create_texture(
+                &device,
+                &queue,
+                &images[mat
+                    .pbr_metallic_roughness()
+                    .base_color_texture()
+                    .unwrap()
+                    .texture()
+                    .index()],
+            ),
+            emissive_texture: Renderable::create_texture(
+                &device,
+                &queue,
+                &images[mat.emissive_texture().unwrap().texture().index()],
+            ),
+            metal_roughness_texture: Renderable::create_texture(
+                &device,
+                &queue,
+                &images[mat
+                    .pbr_metallic_roughness()
+                    .metallic_roughness_texture()
+                    .unwrap()
+                    .texture()
+                    .index()],
+            ),
+            normal_texture: Renderable::create_texture(
+                &device,
+                &queue,
+                &images[mat.normal_texture().unwrap().texture().index()],
+            ),
         };
 
         let material = Material::new(&device, &sc_desc, &pbr_params);

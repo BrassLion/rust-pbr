@@ -5,13 +5,14 @@ layout(location = 1) in vec3 i_normal;
 layout(location = 2) in vec2 i_tex_coord;
 
 layout(set=0, binding=0)
-uniform Uniforms {
+uniform Transforms {
     mat4 u_model;
     mat4 u_view_proj;
+    vec3 u_camera_world_position;
 };
 
-layout(location = 0) out VS_OUT
-{
+layout(location = 0)
+out VS_OUT {
     vec3 normal;
     vec2 tex_coord;
     vec3 world_pos;

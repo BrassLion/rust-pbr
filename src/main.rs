@@ -65,7 +65,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Add model to world.
         let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
-        let cube_data = include_bytes!("../res/BoxTextured.glb");
+        // let cube_data = include_bytes!("../res/BoxTextured.glb");
 
         world
             .create_entity()
@@ -82,12 +82,10 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         world
             .create_entity()
-            .with(graphics::Renderable::new_from_glb(
-                &render_state.device,
-                &render_state.swap_chain_desc,
-                &render_state.queue,
-                cube_data,
-            ))
+            // .with(graphics::Renderable::new_from_glb(&render_state.device,
+            // &render_state.swap_chain_desc,
+            // &render_state.queue,
+            // cube_data))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
                     nalgebra::Translation3::new(3.0, 0.0, 0.0),

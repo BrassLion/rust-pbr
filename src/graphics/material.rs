@@ -1,16 +1,22 @@
 use super::*;
 
 pub struct PbrBindGroup {
-    pub ambient_texture: Texture,
+    pub ao_texture: Texture,
+    pub albedo_texture: Texture,
+    pub emissive_texture: Texture,
+    pub metal_roughness_texture: Texture,
+    pub normal_texture: Texture,
 }
 
 pub struct TransformBindGroup {
     pub model_matrix: nalgebra::Matrix4<f32>,
     pub view_proj_matrix: nalgebra::Matrix4<f32>,
+    pub camera_world_position: nalgebra::Vector3<f32>,
 }
 
 pub struct LightingBindGroup {
     pub position: nalgebra::Vector3<f32>,
+    pub _padding: u32,
 }
 
 pub struct Material {
@@ -76,7 +82,7 @@ impl Material {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 bindings: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStage::VERTEX,
+                    visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::UniformBuffer { dynamic: false },
                 }],
                 label: Some("transform_bind_group_layout"),
@@ -100,7 +106,7 @@ impl Material {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 bindings: &[
                     wgpu::BindGroupLayoutEntry {
-                        binding: 1,
+                        binding: 0,
                         visibility: wgpu::ShaderStage::FRAGMENT,
                         ty: wgpu::BindingType::SampledTexture {
                             dimension: wgpu::TextureViewDimension::D2,
@@ -109,7 +115,63 @@ impl Material {
                         },
                     },
                     wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler { comparison: false },
+                    },
+                    wgpu::BindGroupLayoutEntry {
                         binding: 2,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::SampledTexture {
+                            dimension: wgpu::TextureViewDimension::D2,
+                            component_type: wgpu::TextureComponentType::Float,
+                            multisampled: false,
+                        },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler { comparison: false },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::SampledTexture {
+                            dimension: wgpu::TextureViewDimension::D2,
+                            component_type: wgpu::TextureComponentType::Float,
+                            multisampled: false,
+                        },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler { comparison: false },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::SampledTexture {
+                            dimension: wgpu::TextureViewDimension::D2,
+                            component_type: wgpu::TextureComponentType::Float,
+                            multisampled: false,
+                        },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler { comparison: false },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::SampledTexture {
+                            dimension: wgpu::TextureViewDimension::D2,
+                            component_type: wgpu::TextureComponentType::Float,
+                            multisampled: false,
+                        },
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 9,
                         visibility: wgpu::ShaderStage::FRAGMENT,
                         ty: wgpu::BindingType::Sampler { comparison: false },
                     },
@@ -121,12 +183,48 @@ impl Material {
             layout: &params_bind_group_layout,
             bindings: &[
                 wgpu::Binding {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&params.ao_texture.view),
+                },
+                wgpu::Binding {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&params.ambient_texture.view),
+                    resource: wgpu::BindingResource::Sampler(&params.ao_texture.sampler),
                 },
                 wgpu::Binding {
                     binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&params.ambient_texture.sampler),
+                    resource: wgpu::BindingResource::TextureView(&params.albedo_texture.view),
+                },
+                wgpu::Binding {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&params.albedo_texture.sampler),
+                },
+                wgpu::Binding {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&params.emissive_texture.view),
+                },
+                wgpu::Binding {
+                    binding: 5,
+                    resource: wgpu::BindingResource::Sampler(&params.emissive_texture.sampler),
+                },
+                wgpu::Binding {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(
+                        &params.metal_roughness_texture.view,
+                    ),
+                },
+                wgpu::Binding {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Sampler(
+                        &params.metal_roughness_texture.sampler,
+                    ),
+                },
+                wgpu::Binding {
+                    binding: 8,
+                    resource: wgpu::BindingResource::TextureView(&params.normal_texture.view),
+                },
+                wgpu::Binding {
+                    binding: 9,
+                    resource: wgpu::BindingResource::Sampler(&params.normal_texture.sampler),
                 },
             ],
             label: Some("params_bind_group"),
@@ -142,7 +240,7 @@ impl Material {
         let lighting_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 bindings: &[wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 0,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::UniformBuffer { dynamic: false },
                 }],
@@ -152,7 +250,7 @@ impl Material {
         let lighting_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &lighting_bind_group_layout,
             bindings: &[wgpu::Binding {
-                binding: 2,
+                binding: 0,
                 resource: wgpu::BindingResource::Buffer {
                     buffer: &lighting_buffer,
                     // FYI: you can share a single buffer between bindings.
@@ -167,8 +265,8 @@ impl Material {
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 bind_group_layouts: &[
                     &transform_bind_group_layout,
-                    &params_bind_group_layout,
                     &lighting_bind_group_layout,
+                    &params_bind_group_layout,
                 ],
             });
 

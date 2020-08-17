@@ -1,5 +1,3 @@
-use specs::prelude::*;
-
 pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: Option<wgpu::Buffer>,
@@ -13,10 +11,6 @@ pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub tex_coord: [f32; 2],
-}
-
-impl Component for Mesh {
-    type Storage = VecStorage<Self>;
 }
 
 impl Mesh {

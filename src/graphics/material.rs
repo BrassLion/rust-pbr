@@ -1,5 +1,4 @@
 use super::*;
-use specs::prelude::*;
 
 pub struct PbrBindGroup {
     pub ambient_texture: Texture,
@@ -21,10 +20,6 @@ pub struct Material {
     pub transform_bind_group_buffer: wgpu::Buffer,
     pub lighting_bind_group: wgpu::BindGroup,
     pub lighting_bind_group_buffer: wgpu::Buffer,
-}
-
-impl Component for Material {
-    type Storage = VecStorage<Self>;
 }
 
 impl Material {

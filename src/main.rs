@@ -59,38 +59,44 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         // Create world.
         let mut world = World::new();
 
+        world.register::<graphics::Renderable>();
+        world.register::<graphics::Pose>();
+        world.register::<graphics::Light>();
+
         // Add model to world.
         let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
         let cube_data = include_bytes!("../res/BoxTextured.glb");
 
-        graphics::ModelLoader::build_entity_from_glb(
-            &render_state.device,
-            &render_state.swap_chain_desc,
-            &render_state.queue,
-            helmet_data,
-            &mut world,
-        )
-        .with(graphics::Pose {
-            model_matrix: nalgebra::Similarity3::identity(),
-        })
-        .build();
+        world
+            .create_entity()
+            .with(graphics::Renderable::new_from_glb(
+                &render_state.device,
+                &render_state.swap_chain_desc,
+                &render_state.queue,
+                helmet_data,
+            ))
+            .with(graphics::Pose {
+                model_matrix: nalgebra::Similarity3::identity(),
+            })
+            .build();
 
-        graphics::ModelLoader::build_entity_from_glb(
-            &render_state.device,
-            &render_state.swap_chain_desc,
-            &render_state.queue,
-            cube_data,
-            &mut world,
-        )
-        .with(graphics::Pose {
-            model_matrix: nalgebra::Similarity3::from_parts(
-                nalgebra::Translation3::new(3.0, 0.0, 0.0),
-                nalgebra::UnitQuaternion::identity(),
-                1.0,
-            ),
-        })
-        .with(graphics::Light {})
-        .build();
+        world
+            .create_entity()
+            .with(graphics::Renderable::new_from_glb(
+                &render_state.device,
+                &render_state.swap_chain_desc,
+                &render_state.queue,
+                cube_data,
+            ))
+            .with(graphics::Pose {
+                model_matrix: nalgebra::Similarity3::from_parts(
+                    nalgebra::Translation3::new(3.0, 0.0, 0.0),
+                    nalgebra::UnitQuaternion::identity(),
+                    1.0,
+                ),
+            })
+            .with(graphics::Light {})
+            .build();
 
         // Pass render state into ECS as last step.
         world.insert(render_state);

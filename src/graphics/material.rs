@@ -282,7 +282,7 @@ impl Material {
             }),
             rasterization_state: Some(wgpu::RasterizationStateDescriptor {
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
+                cull_mode: wgpu::CullMode::None,
                 depth_bias: 0,
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
@@ -317,16 +317,20 @@ impl Material {
                         },
                         wgpu::VertexAttributeDescriptor {
                             // Normal
-                            offset: (std::mem::size_of::<[f32; 3]>()) as wgpu::BufferAddress,
+                            offset: (std::mem::size_of::<f32>() * 3) as wgpu::BufferAddress,
                             shader_location: 1,
                             format: wgpu::VertexFormat::Float3,
                         },
                         wgpu::VertexAttributeDescriptor {
-                            // Tex Coord
-                            offset: (std::mem::size_of::<[f32; 3]>()
-                                + std::mem::size_of::<[f32; 3]>())
-                                as wgpu::BufferAddress,
+                            // Tangent
+                            offset: (std::mem::size_of::<f32>() * 6) as wgpu::BufferAddress,
                             shader_location: 2,
+                            format: wgpu::VertexFormat::Float4,
+                        },
+                        wgpu::VertexAttributeDescriptor {
+                            // Tex Coord
+                            offset: (std::mem::size_of::<f32>() * 10) as wgpu::BufferAddress,
+                            shader_location: 3,
                             format: wgpu::VertexFormat::Float2,
                         },
                     ],

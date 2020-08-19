@@ -10,6 +10,7 @@ pub struct Mesh {
 pub struct Vertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
+    pub tangent: [f32; 4], // tangent vector + bitangent sign.
     pub tex_coord: [f32; 2],
 }
 

@@ -88,7 +88,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             // cube_data))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
-                    nalgebra::Translation3::new(3.0, 0.0, 0.0),
+                    nalgebra::Translation3::new(5.0, 0.0, 0.0),
                     nalgebra::UnitQuaternion::identity(),
                     1.0,
                 ),

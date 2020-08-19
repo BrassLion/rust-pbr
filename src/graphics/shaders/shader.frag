@@ -30,6 +30,7 @@ in VS_IN {
     vec3 normal;
     vec2 tex_coord;
     vec3 world_pos;
+    mat3 tbn;
 } vs_in;
 
 void main() {
@@ -43,20 +44,23 @@ void main() {
     vec3 emissive   = texture(sampler2D(t_emissive, s_emissive), vs_in.tex_coord).rgb;
 
     // Convert normal from tangent space to world space.
-    normal = normalize(normal * 2.0 - 1.0);
+    normal = normal * 2.0 - 1.0;
+    normal = normalize(vs_in.tbn * normal);
 
     // Phong shading.
-    vec3 norm = normalize(vs_in.normal);
+    vec3 norm = normal;
     vec3 light_direction = normalize(u_light.position - vs_in.world_pos);
     vec3 view_direction = normalize(u_camera_world_position - vs_in.world_pos);
     vec3 reflect_direction = reflect(-light_direction, norm);  
-    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), 32.0);
+    float spec = pow(max(dot(view_direction, reflect_direction), 0.0), 128.0);
 
-    vec3 ambient = emissive;
+    vec3 ambient = emissive + vec3(0.1);
     float diffuse = max( dot(norm, light_direction), 0.0 );
-    vec3 specular = vec3(1.0 * spec); 
+    vec3 specular = vec3(3.0 * spec); 
 
     vec3 result = (ambient + diffuse + specular) * albedo;
 
     f_color = vec4(result, 1.0);
+    // f_color = vec4(texture(sampler2D(t_normal, s_normal), vs_in.tex_coord).rgb, 1.0);
+    // f_color = vec4((normal + 1.0) / 2, 1.0);
 }

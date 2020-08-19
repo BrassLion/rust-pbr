@@ -193,6 +193,7 @@ impl Renderable {
                     vertices.push(Vertex {
                         position: vert_pos,
                         normal: vert_norm,
+                        tangent: [0.0; 4], // Calculated later.
                         tex_coord: vert_tex_coord,
                     });
                 }
@@ -202,6 +203,43 @@ impl Renderable {
                     for vertex_index in iter.into_u32() {
                         indices.push(vertex_index);
                     }
+                }
+
+                // Calculate tangents.
+                for vertex_id in 0..vertices.len() {
+                    // Find first occurence of vertex.
+                    let vertex_id_indice_pos =
+                        indices.iter().position(|x| *x == vertex_id as u32).unwrap();
+
+                    let tri_idx = vertex_id_indice_pos / 3;
+
+                    // Get all vertices in triangle.
+                    let verts_in_tri = [
+                        vertices[indices[tri_idx * 3 + 0] as usize],
+                        vertices[indices[tri_idx * 3 + 1] as usize],
+                        vertices[indices[tri_idx * 3 + 2] as usize],
+                    ];
+
+                    let v1: nalgebra::Vector3<f32> = verts_in_tri[0].position.into();
+                    let v2: nalgebra::Vector3<f32> = verts_in_tri[1].position.into();
+                    let v3: nalgebra::Vector3<f32> = verts_in_tri[2].position.into();
+
+                    let uv1: nalgebra::Vector2<f32> = verts_in_tri[0].tex_coord.into();
+                    let uv2: nalgebra::Vector2<f32> = verts_in_tri[1].tex_coord.into();
+                    let uv3: nalgebra::Vector2<f32> = verts_in_tri[2].tex_coord.into();
+
+                    let e1 = v2 - v1;
+                    let e2 = v3 - v1;
+
+                    let delta_uv1 = uv2 - uv1;
+                    let delta_uv2 = uv3 - uv1;
+
+                    let f = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv2.x * delta_uv1.y);
+
+                    vertices[vertex_id].tangent[0] = f * (delta_uv2.y * e1.x - delta_uv1.y * e2.x);
+                    vertices[vertex_id].tangent[1] = f * (delta_uv2.y * e1.y - delta_uv1.y * e2.y);
+                    vertices[vertex_id].tangent[2] = f * (delta_uv2.y * e1.z - delta_uv1.y * e2.z);
+                    vertices[vertex_id].tangent[3] = 1.0;
                 }
             }
         }

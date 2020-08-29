@@ -3,32 +3,43 @@ use specs::prelude::*;
 
 pub struct RenderSystem;
 
+pub struct RenderSystemData {
+    depth_texture: Texture,
+}
+
 impl<'a> System<'a> for RenderSystem {
     type SystemData = (
         WriteExpect<'a, RenderState>,
         ReadExpect<'a, Camera>,
-        ReadExpect<'a, Texture>,
+        ReadExpect<'a, RenderSystemData>,
         ReadStorage<'a, Light>,
         ReadStorage<'a, Pose>,
         ReadStorage<'a, Renderable>,
     );
 
     fn setup(&mut self, world: &mut World) {
-        // Create depth texture.
-        let depth_tex;
+        Self::SystemData::setup(world);
+
+        let render_system_data;
 
         {
             let render_state: WriteExpect<RenderState> = world.system_data();
 
-            depth_tex =
-                Texture::new_depth_texture(&render_state.device, &render_state.swap_chain_desc);
+            let depth_texture = Texture::new_framebuffer_texture(
+                &render_state.device,
+                render_state.swap_chain_desc.width,
+                render_state.swap_chain_desc.height,
+                wgpu::TextureFormat::Depth32Float,
+            );
+
+            render_system_data = RenderSystemData { depth_texture };
         }
 
-        world.insert(depth_tex);
+        world.insert(render_system_data);
     }
 
     fn run(&mut self, data: Self::SystemData) {
-        let (mut render_state, camera, depth_texture, light, pose, renderable) = data;
+        let (mut render_state, camera, render_system_data, light, pose, renderable) = data;
 
         // Start new command buffer.
         let frame = render_state
@@ -53,7 +64,7 @@ impl<'a> System<'a> for RenderSystem {
                 clear_color: wgpu::Color::BLACK,
             }],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                attachment: &depth_texture.view,
+                attachment: &render_system_data.depth_texture.view,
                 depth_load_op: wgpu::LoadOp::Clear,
                 depth_store_op: wgpu::StoreOp::Store,
                 clear_depth: 1.0,
@@ -70,7 +81,21 @@ impl<'a> System<'a> for RenderSystem {
             light_positions.push(pose.model_matrix.isometry.translation.vector);
         }
 
+        let lighting_data = LightingBindGroup {
+            position: light_positions[0],
+            _padding: 0,
+        };
+
         for (pose, renderable) in (&pose, &renderable).join() {
+            // Upload transform data.
+            let transform_data = TransformBindGroup {
+                model_matrix: pose.model_matrix.to_homogeneous(),
+                view_matrix: camera.view_matrix.to_homogeneous(),
+                proj_matrix: camera.proj_matrix.to_homogeneous(),
+                camera_world_position: camera.view_matrix.inverse().translation.vector,
+            };
+
+            // Render the object.
             let render_pass_desc = wgpu::RenderPassDescriptor {
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.view,
@@ -80,7 +105,7 @@ impl<'a> System<'a> for RenderSystem {
                     clear_color: wgpu::Color::BLACK,
                 }],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: &depth_texture.view,
+                    attachment: &render_system_data.depth_texture.view,
                     depth_load_op: wgpu::LoadOp::Load,
                     depth_store_op: wgpu::StoreOp::Store,
                     clear_depth: 1.0,
@@ -94,9 +119,8 @@ impl<'a> System<'a> for RenderSystem {
                 &render_state,
                 &render_pass_desc,
                 &mut encoder,
-                &camera,
-                &light_positions,
-                &pose,
+                &transform_data,
+                &lighting_data,
             );
         }
 

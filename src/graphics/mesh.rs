@@ -55,4 +55,18 @@ impl Mesh {
             num_indices: num_indices as u32,
         }
     }
+
+    pub fn draw<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        render_pass.set_vertex_buffer(0, &self.vertex_buffer, 0, 0);
+
+        match &self.index_buffer {
+            Some(index_buffer) => {
+                render_pass.set_index_buffer(&index_buffer, 0, 0);
+                render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            }
+            None => {
+                render_pass.draw(0..self.num_vertices, 0..1);
+            }
+        }
+    }
 }

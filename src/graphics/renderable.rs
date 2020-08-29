@@ -3,36 +3,11 @@ use specs::prelude::*;
 
 pub struct Renderable {
     mesh: Mesh,
-    material: Material,
+    pub material: Box<dyn MaterialBase + Send + Sync>,
 }
 
 impl Component for Renderable {
     type Storage = VecStorage<Self>;
-}
-
-fn update_uniform_buffer<T>(
-    device: &wgpu::Device,
-    uniform_buffer: &wgpu::Buffer,
-    encoder: &mut wgpu::CommandEncoder,
-    uniform_data: &T,
-) {
-    // TODO: Replace this with a function.
-    let uniform_data_bytes = unsafe {
-        let len = std::mem::size_of_val(uniform_data);
-        let ptr = (uniform_data as *const _) as *const u8;
-        std::slice::from_raw_parts(ptr, len)
-    };
-
-    let staging_buffer =
-        device.create_buffer_with_data(uniform_data_bytes, wgpu::BufferUsage::COPY_SRC);
-
-    encoder.copy_buffer_to_buffer(
-        &staging_buffer,
-        0,
-        &uniform_buffer,
-        0,
-        std::mem::size_of::<T>() as wgpu::BufferAddress,
-    );
 }
 
 impl Renderable {
@@ -41,54 +16,22 @@ impl Renderable {
         render_state: &RenderState,
         render_pass_desc: &wgpu::RenderPassDescriptor,
         encoder: &mut wgpu::CommandEncoder,
-        camera: &Camera,
-        light_positions: &Vec<nalgebra::Vector3<f32>>,
-        pose: &Pose,
+        transform_data: &TransformBindGroup,
+        lighting_data: &LightingBindGroup,
     ) {
-        let mut transform_data = TransformBindGroup {
-            model_matrix: pose.model_matrix.to_homogeneous(),
-            view_proj_matrix: camera.proj_matrix.as_matrix() * camera.view_matrix.to_homogeneous(),
-            camera_world_position: camera.view_matrix.inverse().translation.vector,
-        };
-
-        let lighting_data = LightingBindGroup {
-            position: light_positions[0],
-            _padding: 0,
-        };
-
-        // Upload mesh transforms.
-        transform_data.model_matrix = pose.model_matrix.to_homogeneous();
-
-        update_uniform_buffer(
+        let mut render_pass = self.material.begin_render_pass(
             &render_state.device,
-            &self.material.transform_bind_group_buffer,
             encoder,
-            &transform_data,
-        );
-        update_uniform_buffer(
-            &render_state.device,
-            &self.material.lighting_bind_group_buffer,
-            encoder,
-            &lighting_data,
+            render_pass_desc,
+            transform_data,
+            lighting_data,
         );
 
-        let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
+        self.mesh.draw(&mut render_pass);
+    }
 
-        render_pass.set_pipeline(&self.material.render_pipeline);
-        render_pass.set_bind_group(0, &self.material.transform_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.material.lighting_bind_group, &[]);
-        render_pass.set_bind_group(2, &self.material.params_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, &self.mesh.vertex_buffer, 0, 0);
-
-        match &self.mesh.index_buffer {
-            Some(index_buffer) => {
-                render_pass.set_index_buffer(&index_buffer, 0, 0);
-                render_pass.draw_indexed(0..self.mesh.num_indices, 0, 0..1);
-            }
-            None => {
-                render_pass.draw(0..self.mesh.num_vertices, 0..1);
-            }
-        }
+    pub fn new(mesh: Mesh, material: Box<dyn MaterialBase + Send + Sync>) -> Self {
+        Self { mesh, material }
     }
 
     pub fn new_from_glb<'a>(
@@ -141,9 +84,9 @@ impl Renderable {
             ),
         };
 
-        let material = Material::new(&device, &sc_desc, &pbr_params);
+        let material = Box::new(PbrMaterial::new(&device, &sc_desc, &pbr_params));
 
-        Self { mesh, material }
+        Renderable::new(mesh, material)
     }
 
     fn create_texture(
@@ -167,6 +110,7 @@ impl Renderable {
             image.width,
             image.height,
             rgba_data.as_ref(),
+            wgpu::TextureFormat::Rgba8UnormSrgb,
         )
     }
 

@@ -47,11 +47,11 @@ impl Skybox {
         );
 
         // Create HDR material.
-        let hdr_material_params = HdrBindGroup {
+        let hdr_material_params = HdrCvtBindGroup {
             equirectangular_texture: hdr_texture,
         };
 
-        let hdr_material = Box::new(HdrMaterial::new(
+        let hdr_material = Box::new(HdrCvtMaterial::new(
             device,
             &wgpu::SwapChainDescriptor {
                 format: wgpu::TextureFormat::Rgba16Float,
@@ -182,7 +182,7 @@ impl Skybox {
 
                 render_pass.set_pipeline(&hdr_material.render_pipeline);
                 render_pass.set_bind_group(0, &hdr_material.transform_bind_group, &[]);
-                render_pass.set_bind_group(1, &hdr_material.hdr_bind_group, &[]);
+                render_pass.set_bind_group(1, &hdr_material.cvt_bind_group, &[]);
 
                 cube_mesh.draw(&mut render_pass);
             }
@@ -194,8 +194,8 @@ impl Skybox {
 
         queue.submit(&[cmd_buffer]);
 
-        // Create cubemap.
-        let cubemap_texture = Texture::new_cubemap_texture(
+        // Create environment cubemap.
+        let environment_texture = Texture::new_cubemap_texture(
             device,
             queue,
             512,
@@ -204,8 +204,73 @@ impl Skybox {
             wgpu::TextureFormat::Rgba16Float,
         );
 
+        // Convolve the environment map.
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("HDR convolve"),
+        });
+
+        let convolve_params = HdrConvolveBindGroup {
+            environment_texture,
+        };
+
+        let convolve_material = HdrConvolveMaterial::new(device, sc_desc, &convolve_params);
+
+        let mut cubemap_faces = Vec::new();
+
+        for i in 0..6 {
+            let cubemap_face =
+                Texture::new_framebuffer_texture(device, 32, 32, wgpu::TextureFormat::Rgba16Float);
+
+            let transforms = HdrTransformBindGroup {
+                proj_matrix: proj.to_homogeneous(),
+                view_matrix: views[i].to_homogeneous(),
+            };
+
+            material_base::update_uniform_buffer(
+                device,
+                &convolve_material.transform_bind_group_buffer,
+                &mut encoder,
+                &transforms,
+            );
+
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                        attachment: &cubemap_face.view,
+                        resolve_target: None,
+                        load_op: wgpu::LoadOp::Clear,
+                        store_op: wgpu::StoreOp::Store,
+                        clear_color: wgpu::Color::BLACK,
+                    }],
+                    depth_stencil_attachment: None,
+                });
+
+                render_pass.set_pipeline(&convolve_material.render_pipeline);
+                render_pass.set_bind_group(0, &convolve_material.transform_bind_group, &[]);
+                render_pass.set_bind_group(1, &convolve_material.convolve_bind_group, &[]);
+
+                cube_mesh.draw(&mut render_pass);
+            }
+
+            cubemap_faces.push(cubemap_face);
+        }
+
+        let cmd_buffer = encoder.finish();
+
+        queue.submit(&[cmd_buffer]);
+
+        let irradiance_texture = Texture::new_cubemap_texture(
+            device,
+            queue,
+            32,
+            32,
+            cubemap_faces.as_slice(),
+            wgpu::TextureFormat::Rgba16Float,
+        );
+
         let skybox_params = SkyboxBindGroup {
-            environment_texture: cubemap_texture,
+            environment_texture: convolve_params.environment_texture,
+            irradiance_texture,
         };
 
         let material = Box::new(SkyboxMaterial::new(device, sc_desc, &skybox_params));

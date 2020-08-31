@@ -43,15 +43,15 @@ impl Renderable {
         let (gltf, buffers, images) = gltf::import_slice(glb_data.as_ref()).unwrap();
 
         let mesh = Renderable::create_mesh(&device, &gltf, &buffers);
-
         let mat = gltf.materials().next().unwrap();
 
         let pbr_params = PbrBindGroup {
-            ao_texture: Renderable::create_texture(
-                &device,
-                &queue,
-                &images[mat.occlusion_texture().unwrap().texture().index()],
-            ),
+            ao_texture: match mat.occlusion_texture() {
+                Some(texture) => {
+                    Renderable::create_texture(&device, &queue, &images[texture.texture().index()])
+                }
+                None => Renderable::create_texture(&device, &queue, &images[0]),
+            },
             albedo_texture: Renderable::create_texture(
                 &device,
                 &queue,
@@ -62,26 +62,25 @@ impl Renderable {
                     .texture()
                     .index()],
             ),
-            emissive_texture: Renderable::create_texture(
-                &device,
-                &queue,
-                &images[mat.emissive_texture().unwrap().texture().index()],
-            ),
-            metal_roughness_texture: Renderable::create_texture(
-                &device,
-                &queue,
-                &images[mat
-                    .pbr_metallic_roughness()
-                    .metallic_roughness_texture()
-                    .unwrap()
-                    .texture()
-                    .index()],
-            ),
-            normal_texture: Renderable::create_texture(
-                &device,
-                &queue,
-                &images[mat.normal_texture().unwrap().texture().index()],
-            ),
+            emissive_texture: match mat.emissive_texture() {
+                Some(texture) => {
+                    Renderable::create_texture(&device, &queue, &images[texture.texture().index()])
+                }
+                None => Renderable::create_texture(&device, &queue, &images[0]),
+            },
+            metal_roughness_texture: match mat.pbr_metallic_roughness().metallic_roughness_texture()
+            {
+                Some(texture) => {
+                    Renderable::create_texture(&device, &queue, &images[texture.texture().index()])
+                }
+                None => Renderable::create_texture(&device, &queue, &images[0]),
+            },
+            normal_texture: match mat.normal_texture() {
+                Some(texture) => {
+                    Renderable::create_texture(&device, &queue, &images[texture.texture().index()])
+                }
+                None => Renderable::create_texture(&device, &queue, &images[0]),
+            },
         };
 
         let material = Box::new(PbrMaterial::new(&device, &sc_desc, &pbr_params));

@@ -2,6 +2,7 @@ use super::*;
 
 pub struct SkyboxBindGroup {
     pub environment_texture: Texture,
+    pub irradiance_texture: Texture,
 }
 
 pub struct SkyboxMaterial {

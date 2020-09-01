@@ -24,12 +24,13 @@ out VS_OUT {
 void main() {
 
     vec4 position = vec4(i_position, 1.0);
+    vec4 normal = vec4(i_normal, 1.0);
 
     gl_Position = u_camera.proj * u_camera.view * u_camera.model * position;
 
-    vs_out.normal = i_normal;
+    vs_out.normal = (u_camera.model * normal).xyz;
     vs_out.tex_coord = i_tex_coord;
-    vs_out.world_pos = (u_camera.model * position).xyz; 
+    vs_out.world_pos = (u_camera.model * position).xyz;
 
     vec3 T = normalize( vec3(u_camera.model * vec4(i_tangent.xyz, 0.0)) );
     vec3 N = normalize( vec3(u_camera.model * vec4(i_normal, 0.0)) );

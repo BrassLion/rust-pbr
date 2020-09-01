@@ -65,10 +65,11 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Add model to world.
         let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
+        // let helmet_data = include_bytes!("../res/MetalRoughSpheres.glb");
 
         let hdr_data = include_bytes!("../res/venice_sunset_2k.hdr");
 
-        let skybox = graphics::Skybox::new(
+        let (skybox, skybox_renderable) = graphics::Skybox::new(
             &render_state.device,
             &render_state.swap_chain_desc,
             &render_state.queue,
@@ -82,6 +83,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
                 &render_state.swap_chain_desc,
                 &render_state.queue,
                 helmet_data,
+                &skybox.irradiance_texture,
             ))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
@@ -98,7 +100,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         world
             .create_entity()
-            .with(skybox)
+            .with(skybox_renderable)
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::identity(),
             })
@@ -106,13 +108,16 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         world
             .create_entity()
-            // .with(graphics::Renderable::new_from_glb(&render_state.device,
-            //     &render_state.swap_chain_desc,
-            //     &render_state.queue,
-            //     include_bytes!("../res/BoxTextured.glb")))
+            .with(graphics::Renderable::new_from_glb(
+                &render_state.device,
+                &render_state.swap_chain_desc,
+                &render_state.queue,
+                include_bytes!("../res/BoxTextured.glb"),
+                &skybox.irradiance_texture,
+            ))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
-                    nalgebra::Translation3::new(5.0, 0.0, 0.0),
+                    nalgebra::Translation3::new(2.0, 0.0, 0.0),
                     nalgebra::UnitQuaternion::identity(),
                     1.0,
                 ),

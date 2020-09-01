@@ -2,7 +2,8 @@ use super::*;
 use nalgebra::*;
 
 pub struct Skybox {
-    cubemap_texture: Texture,
+    pub environment_texture: Texture,
+    pub irradiance_texture: Texture,
 }
 
 impl Skybox {
@@ -11,7 +12,7 @@ impl Skybox {
         sc_desc: &wgpu::SwapChainDescriptor,
         queue: &wgpu::Queue,
         hdr_data: &[u8],
-    ) -> Renderable {
+    ) -> (Skybox, Renderable) {
         // Decode HDR data.
         let reader = image::hdr::HdrDecoder::new(hdr_data);
         let decoder = reader.unwrap();
@@ -270,11 +271,17 @@ impl Skybox {
 
         let skybox_params = SkyboxBindGroup {
             environment_texture: convolve_params.environment_texture,
-            irradiance_texture,
         };
 
         let material = Box::new(SkyboxMaterial::new(device, sc_desc, &skybox_params));
+        let skybox = Skybox {
+            environment_texture: skybox_params.environment_texture,
+            irradiance_texture,
+        };
 
-        Renderable::new(cube_mesh, material)
+        (
+            skybox,
+            Renderable::new_from_single_mesh(cube_mesh, material),
+        )
     }
 }

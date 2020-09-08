@@ -83,16 +83,12 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
                 &render_state.swap_chain_desc,
                 &render_state.queue,
                 helmet_data,
-                &skybox.irradiance_texture,
+                &skybox,
             ))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
                     nalgebra::Translation3::identity(),
-                    nalgebra::UnitQuaternion::from_euler_angles(
-                        std::f32::consts::FRAC_PI_2,
-                        0.0,
-                        0.0,
-                    ),
+                    nalgebra::UnitQuaternion::from_euler_angles(0.0, 0.0, 0.0),
                     1.0,
                 ),
             })
@@ -113,11 +109,11 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
                 &render_state.swap_chain_desc,
                 &render_state.queue,
                 include_bytes!("../res/BoxTextured.glb"),
-                &skybox.irradiance_texture,
+                &skybox,
             ))
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
-                    nalgebra::Translation3::new(2.0, 0.0, 0.0),
+                    nalgebra::Translation3::new(3.0, 0.0, 0.0),
                     nalgebra::UnitQuaternion::identity(),
                     1.0,
                 ),

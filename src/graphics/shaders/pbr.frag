@@ -37,6 +37,11 @@ uniform MaterialProperties {
 
 layout(set = 3, binding = 0) uniform textureCube t_irradiance;
 layout(set = 3, binding = 1) uniform sampler s_irradiance;
+layout(set = 3, binding = 2) uniform textureCube t_prefiltered_env_map;
+layout(set = 3, binding = 3) uniform sampler s_prefiltered_env_map;
+layout(set = 3, binding = 4) uniform texture2D t_brdf_lut;
+layout(set = 3, binding = 5) uniform sampler s_brdf_lut;
+
 #ifdef AO_TEXTURE_BINDING
 layout(set = 3, binding = AO_TEXTURE_BINDING) uniform texture2D t_ao;
 layout(set = 3, binding = AO_TEXTURE_BINDING + 1) uniform sampler s_ao;
@@ -106,6 +111,11 @@ vec3 fresnel_schlick(float cos_theta, vec3 fresnel_0)
     return fresnel_0 + (1.0 - fresnel_0) * pow(1.0 - cos_theta, 5.0);
 }
 
+vec3 fresnel_schlick_roughness(float cos_theta, vec3 fresnel_0, float roughness)
+{
+    return fresnel_0 + ( max(vec3(1.0 - roughness), fresnel_0) - fresnel_0 ) * pow(1.0 - cos_theta, 5.0);
+}
+
 void main() {
 
     // Load material parameters.
@@ -163,6 +173,8 @@ void main() {
     vec3 view_dir = normalize(u_camera.world_pos - vs_in.world_pos);
     vec3 fresnel_0 = mix(vec3(0.04), albedo, metallic);
 
+    vec3 reflect_dir = reflect(-view_dir, normal);   
+
     // Over all lights:
     vec3 L_0 = vec3(0.0);
 
@@ -183,9 +195,9 @@ void main() {
         float D = distribution_ggx(normal, half_dir, roughness);
         float G = geometry_smith(normal, view_dir, light_dir, roughness);
 
-        float denom = 4.0 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0);
+        float denom = 4.0 * max(dot(normal, view_dir), 0.0) * max(dot(normal, light_dir), 0.0) + 0.001;
 
-        vec3 specular = (D * F * G) / max(denom, 0.001);
+        vec3 specular = (D * F * G) / denom;
 
         // Calculate ratio of reflected-refracted light.
         vec3 kS = F;
@@ -200,15 +212,23 @@ void main() {
     }
 
     // Calculate final fragment colour.
-    vec3 kS = fresnel_schlick( max( dot(normal, view_dir), 0.0 ), fresnel_0 );
+    vec3 fresnel = fresnel_schlick_roughness( max( dot(normal, view_dir), 0.0 ), fresnel_0, roughness );
+
+    vec3 kS = fresnel;
     vec3 kD = 1.0 - kS;
     kD *= 1.0 - metallic;
 
     vec3 irradiance = texture(samplerCube(t_irradiance, s_irradiance), normal).rgb;
 
     vec3 diffuse = irradiance * albedo;
-    vec3 ambient = (kD * diffuse) * ao + emissive;
 
+    const float MAX_REFLECTION_LOD = 4.0;
+    vec3 prefiltered_colour = textureLod(samplerCube(t_prefiltered_env_map, s_prefiltered_env_map), reflect_dir, roughness * MAX_REFLECTION_LOD).rgb;  
+    vec2 environment_brdf = texture(sampler2D(t_brdf_lut, s_brdf_lut), vec2(max( dot(normal, view_dir), 0.0 ), roughness)).rg;
+    vec3 specular = prefiltered_colour * (fresnel * environment_brdf.x + environment_brdf.y);
+
+    vec3 ambient = (kD * diffuse + specular) * ao + emissive;
+    
     vec3 colour = ambient + L_0;
 
     // Gamma correct.

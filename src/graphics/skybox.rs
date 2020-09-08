@@ -3,7 +3,9 @@ use nalgebra::*;
 
 pub struct Skybox {
     pub environment_texture: Texture,
-    pub irradiance_texture: Texture,
+    pub irradiance_map: Texture,
+    pub prefiltered_environment_map: Texture,
+    pub brdf_lut: Texture,
 }
 
 impl Skybox {
@@ -103,7 +105,7 @@ impl Skybox {
         );
 
         // Convolve the environment map.
-        let irradiance_texture = Skybox::create_irradiance_map(
+        let irradiance_map = Skybox::create_irradiance_map(
             device,
             sc_desc,
             queue,
@@ -124,6 +126,8 @@ impl Skybox {
             &views,
         );
 
+        let precomputed_brdf = Skybox::create_precomputed_brdf_texture(device, sc_desc, queue);
+
         let skybox_params = SkyboxBindGroup {
             environment_texture,
         };
@@ -131,7 +135,9 @@ impl Skybox {
         let material = Box::new(SkyboxMaterial::new(device, sc_desc, &skybox_params));
         let skybox = Skybox {
             environment_texture: skybox_params.environment_texture,
-            irradiance_texture,
+            irradiance_map,
+            prefiltered_environment_map,
+            brdf_lut: precomputed_brdf,
         };
 
         (
@@ -166,13 +172,14 @@ impl Skybox {
             std::slice::from_raw_parts(ptr, len)
         };
 
-        Texture::new_texture(
+        Texture::new_texture_from_data(
             device,
             queue,
             width,
             height,
             pixel_data_bytes,
             wgpu::TextureFormat::Rgba32Float,
+            wgpu::AddressMode::ClampToEdge,
         )
     }
 
@@ -445,6 +452,94 @@ impl Skybox {
             cubemap_faces.as_slice(),
             wgpu::TextureFormat::Rgba16Float,
             5,
+        )
+    }
+
+    fn create_precomputed_brdf_texture(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        queue: &wgpu::Queue,
+    ) -> Texture {
+        let screen_space_quad_vertices: [[f32; 3]; 4] = [
+            [-1.0, -1.0, 0.0],
+            [-1.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [1.0, -1.0, 0.0],
+        ];
+
+        let screen_space_quad_tex_coords: [[f32; 2]; 4] =
+            [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
+
+        let screen_space_quad_elements: [u32; 6] = [0, 1, 2, 2, 3, 0];
+
+        let screen_space_quad_vertex_array = screen_space_quad_vertices
+            .iter()
+            .zip(screen_space_quad_tex_coords.iter())
+            .map(|(&pos, &tex_coord)| Vertex {
+                position: pos,
+                normal: [0.0, 0.0, 0.0],
+                tangent: [0.0, 0.0, 0.0, 0.0],
+                tex_coord: tex_coord,
+            })
+            .collect::<Vec<Vertex>>();
+
+        let screen_space_quad_mesh = Mesh::new(
+            device,
+            &screen_space_quad_vertex_array,
+            Some(&screen_space_quad_elements),
+        );
+
+        let brdf_mat = HdrConvolveBrdfMaterial::new(device, sc_desc);
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("brdf_precompute"),
+        });
+
+        let transforms = HdrTransformBindGroup {
+            proj_matrix: Matrix3::identity().to_homogeneous(),
+            view_matrix: Similarity3::identity().to_homogeneous(),
+        };
+
+        material_base::update_uniform_buffer(
+            device,
+            &brdf_mat.transform_bind_group_buffer,
+            &mut encoder,
+            &transforms,
+        );
+
+        let framebuffer =
+            Texture::new_framebuffer_texture(device, 512, 512, wgpu::TextureFormat::Rg16Float);
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                    attachment: &framebuffer.view,
+                    resolve_target: None,
+                    load_op: wgpu::LoadOp::Clear,
+                    store_op: wgpu::StoreOp::Store,
+                    clear_color: wgpu::Color::BLACK,
+                }],
+                depth_stencil_attachment: None,
+            });
+
+            render_pass.set_pipeline(&brdf_mat.render_pipeline);
+            render_pass.set_bind_group(0, &brdf_mat.transform_bind_group, &[]);
+
+            screen_space_quad_mesh.draw(&mut render_pass);
+        }
+
+        let cmd_buffer = encoder.finish();
+
+        queue.submit(&[cmd_buffer]);
+
+        Texture::new_texture_from_framebuffer(
+            device,
+            queue,
+            512,
+            512,
+            &framebuffer,
+            wgpu::TextureFormat::Rg16Float,
+            wgpu::AddressMode::ClampToEdge,
         )
     }
 }

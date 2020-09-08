@@ -42,7 +42,7 @@ impl Camera {
             rot_scaling_factor: 2.0,
             zoom_scaling_factor: 0.05,
             zoom_min_distance: 1.0,
-            zoom_max_distance: 10.0,
+            zoom_max_distance: 50.0,
         }
     }
 

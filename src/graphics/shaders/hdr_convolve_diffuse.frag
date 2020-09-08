@@ -1,17 +1,21 @@
 #version 450
 
-layout(location = 0) out vec4 f_colour;
+const float PI = 3.14159265359;
+
+layout(location = 0)
+in VS_OUT {
+    vec2 tex_coord;
+    vec3 pos;
+} fs_in;
 
 layout(set = 1, binding = 0) uniform textureCube t_environmentMap;
 layout(set = 1, binding = 1) uniform sampler s_environmentMap;
 
-layout(location = 0) in vec3 f_pos;
-
-const float PI = 3.14159265359;
+layout(location = 0) out vec4 f_colour;
 
 void main()
 {		
-    vec3 normal = normalize(f_pos);
+    vec3 normal = normalize(fs_in.pos);
 
     vec3 irradiance = vec3(0.0);
     

@@ -6,13 +6,14 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn new_texture(
+    pub fn new_texture_from_data(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         width: u32,
         height: u32,
         rgba_data: &[u8],
         image_format: wgpu::TextureFormat,
+        wrap_mode: wgpu::AddressMode,
     ) -> Self {
         // Create texture.
         let size = wgpu::Extent3d {
@@ -59,9 +60,78 @@ impl Texture {
         let view = _texture.create_default_view();
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
+            address_mode_u: wrap_mode,
+            address_mode_v: wrap_mode,
+            address_mode_w: wrap_mode,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: -100.0,
+            lod_max_clamp: 100.0,
+            compare: wgpu::CompareFunction::LessEqual,
+        });
+
+        Self {
+            _texture,
+            dimension: wgpu::TextureViewDimension::D2,
+            view,
+            sampler,
+        }
+    }
+
+    pub fn new_texture_from_framebuffer(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        width: u32,
+        height: u32,
+        framebuffer: &Texture,
+        image_format: wgpu::TextureFormat,
+        wrap_mode: wgpu::AddressMode,
+    ) -> Self {
+        // Create texture.
+        let size = wgpu::Extent3d {
+            width: width,
+            height: height,
+            depth: 1,
+        };
+        let _texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: size,
+            array_layer_count: 1,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: image_format,
+            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        });
+
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        encoder.copy_texture_to_texture(
+            wgpu::TextureCopyView {
+                texture: &framebuffer._texture,
+                mip_level: 0,
+                array_layer: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::TextureCopyView {
+                texture: &_texture,
+                mip_level: 0,
+                array_layer: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            size,
+        );
+
+        queue.submit(&[encoder.finish()]);
+
+        let view = _texture.create_default_view();
+
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wrap_mode,
+            address_mode_v: wrap_mode,
+            address_mode_w: wrap_mode,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,

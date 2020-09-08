@@ -49,7 +49,7 @@ impl Renderable {
         sc_desc: &wgpu::SwapChainDescriptor,
         queue: &wgpu::Queue,
         glb_data: &[u8],
-        irradiance_texture: &Texture,
+        skybox: &Skybox,
     ) -> Self {
         let (gltf, buffers, images) = gltf::import_slice(glb_data.as_ref()).unwrap();
 
@@ -165,7 +165,9 @@ impl Renderable {
                     factor: Some([0.0; 4]),
                 },
             },
-            irradiance_texture,
+            irradiance_map: &skybox.irradiance_map,
+            prefiltered_environment_map: &skybox.prefiltered_environment_map,
+            brdf_lut: &skybox.brdf_lut,
             textures,
         };
 
@@ -191,22 +193,24 @@ impl Renderable {
                     rgba_data[i * 4 + 3] = 255;
                 }
 
-                Texture::new_texture(
+                Texture::new_texture_from_data(
                     &device,
                     &queue,
                     image.width,
                     image.height,
                     rgba_data.as_ref(),
                     wgpu::TextureFormat::Rgba8UnormSrgb,
+                    wgpu::AddressMode::Repeat,
                 )
             }
-            gltf::image::Format::R8G8B8A8 => Texture::new_texture(
+            gltf::image::Format::R8G8B8A8 => Texture::new_texture_from_data(
                 &device,
                 &queue,
                 image.width,
                 image.height,
                 image.pixels.as_ref(),
                 wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::AddressMode::Repeat,
             ),
             _ => panic!("Unimplemented tex type"),
         }

@@ -8,7 +8,10 @@ pub struct PbrBindGroup<'a> {
     pub emissive_property: MaterialProperty,
     pub metal_roughness_property: MaterialProperty,
     pub normal_property: MaterialProperty,
-    pub irradiance_texture: &'a Texture,
+
+    pub irradiance_map: &'a Texture,
+    pub prefiltered_environment_map: &'a Texture,
+    pub brdf_lut: &'a Texture,
 }
 
 #[derive(Copy, Clone)]
@@ -72,31 +75,82 @@ impl PbrMaterial {
         let mut pbr_texture_bindings = Vec::new();
         let mut pbr_defines = "".to_owned();
 
-        // Irradiance texture will always be bound first.
-        pbr_texture_binding_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: pbr_texture_binding_entries.len() as u32,
-            visibility: wgpu::ShaderStage::FRAGMENT,
-            ty: wgpu::BindingType::SampledTexture {
-                dimension: wgpu::TextureViewDimension::Cube,
-                component_type: wgpu::TextureComponentType::Float,
-                multisampled: false,
+        // Add constant texture bindings.
+        pbr_texture_binding_entries.extend_from_slice(&[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::SampledTexture {
+                    dimension: wgpu::TextureViewDimension::Cube,
+                    component_type: wgpu::TextureComponentType::Float,
+                    multisampled: false,
+                },
             },
-        });
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::Sampler { comparison: false },
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::SampledTexture {
+                    dimension: wgpu::TextureViewDimension::Cube,
+                    component_type: wgpu::TextureComponentType::Float,
+                    multisampled: false,
+                },
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 3,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::Sampler { comparison: false },
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 4,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::SampledTexture {
+                    dimension: wgpu::TextureViewDimension::D2,
+                    component_type: wgpu::TextureComponentType::Float,
+                    multisampled: false,
+                },
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 5,
+                visibility: wgpu::ShaderStage::FRAGMENT,
+                ty: wgpu::BindingType::Sampler { comparison: false },
+            },
+        ]);
 
-        pbr_texture_binding_entries.push(wgpu::BindGroupLayoutEntry {
-            binding: pbr_texture_binding_entries.len() as u32,
-            visibility: wgpu::ShaderStage::FRAGMENT,
-            ty: wgpu::BindingType::Sampler { comparison: false },
-        });
-
-        pbr_texture_bindings.push(wgpu::Binding {
-            binding: pbr_texture_bindings.len() as u32,
-            resource: wgpu::BindingResource::TextureView(&params.irradiance_texture.view),
-        });
-        pbr_texture_bindings.push(wgpu::Binding {
-            binding: pbr_texture_bindings.len() as u32,
-            resource: wgpu::BindingResource::Sampler(&params.irradiance_texture.sampler),
-        });
+        pbr_texture_bindings.extend_from_slice(&[
+            wgpu::Binding {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&params.irradiance_map.view),
+            },
+            wgpu::Binding {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&params.irradiance_map.sampler),
+            },
+            wgpu::Binding {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(
+                    &params.prefiltered_environment_map.view,
+                ),
+            },
+            wgpu::Binding {
+                binding: 3,
+                resource: wgpu::BindingResource::Sampler(
+                    &params.prefiltered_environment_map.sampler,
+                ),
+            },
+            wgpu::Binding {
+                binding: 4,
+                resource: wgpu::BindingResource::TextureView(&params.brdf_lut.view),
+            },
+            wgpu::Binding {
+                binding: 5,
+                resource: wgpu::BindingResource::Sampler(&params.brdf_lut.sampler),
+            },
+        ]);
 
         let pbr_properties = [
             ("AO", params.ao_property),

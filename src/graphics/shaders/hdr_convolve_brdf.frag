@@ -16,7 +16,7 @@ layout(set = 2, binding = 0) uniform Material
     float roughness;
 } u_material;
 
-layout(location = 0) out vec4 f_colour;
+layout(location = 0) out vec2 f_colour;
 
 
 float radical_inverse_vdc(uint bits) 
@@ -56,34 +56,70 @@ vec3 importance_sample_ggx(vec2 Xi, vec3 N, float roughness)
     vec3 result = tangent * H.x + bitangent * H.y + N * H.z;
 
     return normalize(result);
-}  
+} 
 
-void main()
-{		
-    vec3 N = normalize(fs_in.pos);    
-    vec3 R = N;
-    vec3 V = R;
+float geometry_schlick_ggx(float n_dot_v, float roughness)
+{
+    float r = roughness;
+    float k = (r * r) / 2.0;
+
+    float nom   = n_dot_v;
+    float denom = n_dot_v * (1.0 - k) + k;
+	
+    return nom / denom;
+}
+
+float geometry_smith(vec3 normal, vec3 view_dir, vec3 light_dir, float roughness)
+{
+    float n_dot_v = max(dot(normal, view_dir), 0.0);
+    float n_dot_l = max(dot(normal, light_dir), 0.0);
+    float ggx1 = geometry_schlick_ggx(n_dot_v, roughness);
+    float ggx2 = geometry_schlick_ggx(n_dot_l, roughness);
+	
+    return ggx1 * ggx2;
+}
+
+vec2 integrate_brdf(float n_dot_v, float roughness)
+{
+    vec3 V;
+    V.x = sqrt(1.0 - n_dot_v * n_dot_v);
+    V.y = 0.0;
+    V.z = n_dot_v;
+
+    float A = 0.0;
+    float B = 0.0;
+
+    vec3 N = vec3(0.0, 0.0, 1.0);
 
     const uint SAMPLE_COUNT = 1024u;
-    float total_weight = 0.0;   
-    vec3 prefiltered_colour = vec3(0.0); 
-
     for(uint i = 0u; i < SAMPLE_COUNT; ++i)
     {
-        vec2 x_i = hammersley(i, SAMPLE_COUNT);
-        vec3 H  = importance_sample_ggx(x_i, N, u_material.roughness);
+        vec2 Xi = hammersley(i, SAMPLE_COUNT);
+        vec3 H  = importance_sample_ggx(Xi, N, roughness);
         vec3 L  = normalize(2.0 * dot(V, H) * H - V);
 
-        float n_dot_l = max(dot(N, L), 0.0);
+        float n_dot_l = max(L.z, 0.0);
+        float n_dot_h = max(H.z, 0.0);
+        float v_dot_h = max(dot(V, H), 0.0);
 
         if(n_dot_l > 0.0)
         {
-            prefiltered_colour += texture(samplerCube(t_environmentMap, s_environmentMap), L).rgb * n_dot_l;
-            total_weight       += n_dot_l;
+            float g = geometry_smith(N, V, L, roughness);
+            float g_vis = (g * v_dot_h) / (n_dot_h * n_dot_v);
+            float f_c = pow(1.0 - v_dot_h, 5.0);
+
+            A += (1.0 - f_c) * g_vis;
+            B += f_c * g_vis;
         }
     }
 
-    prefiltered_colour = prefiltered_colour / total_weight;
+    A /= float(SAMPLE_COUNT);
+    B /= float(SAMPLE_COUNT);
 
-    f_colour = vec4(prefiltered_colour, 1.0);
-} 
+    return vec2(A, B);
+}
+
+void main() 
+{
+    f_colour = integrate_brdf(fs_in.tex_coord.x, fs_in.tex_coord.y);
+}

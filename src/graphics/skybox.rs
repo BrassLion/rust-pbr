@@ -13,58 +13,9 @@ impl Skybox {
         queue: &wgpu::Queue,
         hdr_data: &[u8],
     ) -> (Skybox, Renderable) {
-        // Decode HDR data.
-        let reader = image::hdr::HdrDecoder::new(hdr_data);
-        let decoder = reader.unwrap();
+        let hdr_texture = Skybox::create_hdr_texture(device, queue, hdr_data);
 
-        let width = decoder.metadata().width;
-        let height = decoder.metadata().height;
-        let pixels = decoder.read_image_hdr().unwrap();
-
-        // Add alpha data.
-        let mut pixel_data = Vec::new();
-
-        for pixel in pixels {
-            pixel_data.push(pixel[0]);
-            pixel_data.push(pixel[1]);
-            pixel_data.push(pixel[2]);
-            pixel_data.push(1.0);
-        }
-
-        // Create HDR equirectangular texture.
-        let pixel_data_bytes = unsafe {
-            let len = pixel_data.len() * std::mem::size_of::<f32>();
-            let ptr = pixel_data.as_ptr() as *const u8;
-            std::slice::from_raw_parts(ptr, len)
-        };
-
-        let hdr_texture = Texture::new_texture(
-            device,
-            queue,
-            width,
-            height,
-            pixel_data_bytes,
-            wgpu::TextureFormat::Rgba32Float,
-        );
-
-        // Create HDR material.
-        let hdr_material_params = HdrCvtBindGroup {
-            equirectangular_texture: hdr_texture,
-        };
-
-        let hdr_material = Box::new(HdrCvtMaterial::new(
-            device,
-            &wgpu::SwapChainDescriptor {
-                format: wgpu::TextureFormat::Rgba16Float,
-                usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
-                width: 512,
-                height: 512,
-                present_mode: wgpu::PresentMode::Immediate,
-            },
-            &hdr_material_params,
-        ));
-
-        // Create unit cube.
+        // Create unit cube for projections.
         let cube_vertices: [[f32; 3]; 8] = [
             // front
             [-1.0, -1.0, 1.0],
@@ -98,9 +49,8 @@ impl Skybox {
             })
             .collect::<Vec<Vertex>>();
 
-        let cube_mesh = Mesh::new(device, cube_vertex_array.as_slice(), Some(&cube_elements));
+        let unit_cube_mesh = Mesh::new(device, cube_vertex_array.as_slice(), Some(&cube_elements));
 
-        // Convert to cubemap
         let proj = Perspective3::new(1.0, std::f32::consts::PI / 180.0 * 90.0, 0.1, 10.0);
 
         let views = [
@@ -141,6 +91,115 @@ impl Skybox {
                 1.0,
             ),
         ];
+
+        // Create environment map.
+        let environment_texture = Skybox::create_environment_map_from_hdr(
+            device,
+            queue,
+            &hdr_texture,
+            &unit_cube_mesh,
+            &proj,
+            &views,
+        );
+
+        // Convolve the environment map.
+        let irradiance_texture = Skybox::create_irradiance_map(
+            device,
+            sc_desc,
+            queue,
+            &environment_texture,
+            &unit_cube_mesh,
+            &proj,
+            &views,
+        );
+
+        // Generate specular IBL pre-filtered environment map.
+        let prefiltered_environment_map = Skybox::create_prefiltered_environment_map(
+            device,
+            sc_desc,
+            queue,
+            &environment_texture,
+            &unit_cube_mesh,
+            &proj,
+            &views,
+        );
+
+        let skybox_params = SkyboxBindGroup {
+            environment_texture,
+        };
+
+        let material = Box::new(SkyboxMaterial::new(device, sc_desc, &skybox_params));
+        let skybox = Skybox {
+            environment_texture: skybox_params.environment_texture,
+            irradiance_texture,
+        };
+
+        (
+            skybox,
+            Renderable::new_from_single_mesh(unit_cube_mesh, material),
+        )
+    }
+
+    fn create_hdr_texture(device: &wgpu::Device, queue: &wgpu::Queue, hdr_data: &[u8]) -> Texture {
+        // Decode HDR data.
+        let reader = image::hdr::HdrDecoder::new(hdr_data);
+        let decoder = reader.unwrap();
+
+        let width = decoder.metadata().width;
+        let height = decoder.metadata().height;
+        let pixels = decoder.read_image_hdr().unwrap();
+
+        // Add alpha data.
+        let mut pixel_data = Vec::new();
+
+        for pixel in pixels {
+            pixel_data.push(pixel[0]);
+            pixel_data.push(pixel[1]);
+            pixel_data.push(pixel[2]);
+            pixel_data.push(1.0);
+        }
+
+        // Create HDR equirectangular texture.
+        let pixel_data_bytes = unsafe {
+            let len = pixel_data.len() * std::mem::size_of::<f32>();
+            let ptr = pixel_data.as_ptr() as *const u8;
+            std::slice::from_raw_parts(ptr, len)
+        };
+
+        Texture::new_texture(
+            device,
+            queue,
+            width,
+            height,
+            pixel_data_bytes,
+            wgpu::TextureFormat::Rgba32Float,
+        )
+    }
+
+    fn create_environment_map_from_hdr(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        hdr_texture: &Texture,
+        unit_cube_mesh: &Mesh,
+        proj: &nalgebra::Perspective3<f32>,
+        views: &[nalgebra::Similarity3<f32>; 6],
+    ) -> Texture {
+        // Create HDR material.
+        let hdr_material_params = HdrCvtBindGroup {
+            equirectangular_texture: hdr_texture,
+        };
+
+        let hdr_material = Box::new(HdrCvtMaterial::new(
+            device,
+            &wgpu::SwapChainDescriptor {
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                width: 512,
+                height: 512,
+                present_mode: wgpu::PresentMode::Immediate,
+            },
+            &hdr_material_params,
+        ));
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("HDR convert"),
@@ -185,7 +244,7 @@ impl Skybox {
                 render_pass.set_bind_group(0, &hdr_material.transform_bind_group, &[]);
                 render_pass.set_bind_group(1, &hdr_material.cvt_bind_group, &[]);
 
-                cube_mesh.draw(&mut render_pass);
+                unit_cube_mesh.draw(&mut render_pass);
             }
 
             cubemap_faces.push(cubemap_face);
@@ -196,25 +255,35 @@ impl Skybox {
         queue.submit(&[cmd_buffer]);
 
         // Create environment cubemap.
-        let environment_texture = Texture::new_cubemap_texture(
+        Texture::new_cubemap_texture(
             device,
             queue,
             512,
             512,
             cubemap_faces.as_slice(),
             wgpu::TextureFormat::Rgba16Float,
-        );
+            1,
+        )
+    }
 
-        // Convolve the environment map.
+    fn create_irradiance_map(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        queue: &wgpu::Queue,
+        environment_texture: &Texture,
+        unit_cube_mesh: &Mesh,
+        proj: &nalgebra::Perspective3<f32>,
+        views: &[nalgebra::Similarity3<f32>; 6],
+    ) -> Texture {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("HDR convolve"),
         });
 
-        let convolve_params = HdrConvolveBindGroup {
-            environment_texture,
+        let convolve_params = HdrConvolveDiffuseBindGroup {
+            environment_texture: environment_texture,
         };
 
-        let convolve_material = HdrConvolveMaterial::new(device, sc_desc, &convolve_params);
+        let convolve_material = HdrConvolveDiffuseMaterial::new(device, sc_desc, &convolve_params);
 
         let mut cubemap_faces = Vec::new();
 
@@ -250,7 +319,7 @@ impl Skybox {
                 render_pass.set_bind_group(0, &convolve_material.transform_bind_group, &[]);
                 render_pass.set_bind_group(1, &convolve_material.convolve_bind_group, &[]);
 
-                cube_mesh.draw(&mut render_pass);
+                unit_cube_mesh.draw(&mut render_pass);
             }
 
             cubemap_faces.push(cubemap_face);
@@ -260,28 +329,122 @@ impl Skybox {
 
         queue.submit(&[cmd_buffer]);
 
-        let irradiance_texture = Texture::new_cubemap_texture(
+        Texture::new_cubemap_texture(
             device,
             queue,
             32,
             32,
             cubemap_faces.as_slice(),
             wgpu::TextureFormat::Rgba16Float,
+            1,
+        )
+    }
+
+    fn create_prefiltered_environment_map(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        queue: &wgpu::Queue,
+        environment_texture: &Texture,
+        unit_cube_mesh: &Mesh,
+        proj: &nalgebra::Perspective3<f32>,
+        views: &[nalgebra::Similarity3<f32>; 6],
+    ) -> Texture {
+        let hdr_specular_convolution_material = HdrConvolveSpecularMaterial::new(
+            device,
+            sc_desc,
+            &HdrConvolveSpecularBindGroup {
+                environment_texture: environment_texture,
+                roughness: 0.0,
+            },
         );
 
-        let skybox_params = SkyboxBindGroup {
-            environment_texture: convolve_params.environment_texture,
-        };
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("HDR convolve specular"),
+        });
 
-        let material = Box::new(SkyboxMaterial::new(device, sc_desc, &skybox_params));
-        let skybox = Skybox {
-            environment_texture: skybox_params.environment_texture,
-            irradiance_texture,
-        };
+        let mut cubemap_faces = Vec::new();
 
-        (
-            skybox,
-            Renderable::new_from_single_mesh(cube_mesh, material),
+        for mip_level in 0..5 {
+            let mip_width: u32 = 128 >> mip_level;
+            let mip_height: u32 = 128 >> mip_level;
+
+            let roughness = mip_level as f32 / 4.0;
+
+            material_base::update_uniform_buffer(
+                device,
+                &hdr_specular_convolution_material.roughness_bind_group_buffer,
+                &mut encoder,
+                &[roughness],
+            );
+
+            for i in 0..6 {
+                let cubemap_face = Texture::new_framebuffer_texture(
+                    device,
+                    mip_width,
+                    mip_height,
+                    wgpu::TextureFormat::Rgba16Float,
+                );
+
+                let transforms = HdrTransformBindGroup {
+                    proj_matrix: proj.to_homogeneous(),
+                    view_matrix: views[i].to_homogeneous(),
+                };
+
+                material_base::update_uniform_buffer(
+                    device,
+                    &hdr_specular_convolution_material.transform_bind_group_buffer,
+                    &mut encoder,
+                    &transforms,
+                );
+
+                {
+                    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                            attachment: &cubemap_face.view,
+                            resolve_target: None,
+                            load_op: wgpu::LoadOp::Clear,
+                            store_op: wgpu::StoreOp::Store,
+                            clear_color: wgpu::Color::BLACK,
+                        }],
+                        depth_stencil_attachment: None,
+                    });
+
+                    render_pass.set_pipeline(&hdr_specular_convolution_material.render_pipeline);
+                    render_pass.set_bind_group(
+                        0,
+                        &hdr_specular_convolution_material.transform_bind_group,
+                        &[],
+                    );
+                    render_pass.set_bind_group(
+                        1,
+                        &hdr_specular_convolution_material.convolve_bind_group,
+                        &[],
+                    );
+                    render_pass.set_bind_group(
+                        2,
+                        &hdr_specular_convolution_material.roughness_bind_group,
+                        &[],
+                    );
+
+                    unit_cube_mesh.draw(&mut render_pass);
+                }
+
+                cubemap_faces.push(cubemap_face);
+            }
+        }
+
+        let cmd_buffer = encoder.finish();
+
+        queue.submit(&[cmd_buffer]);
+
+        Texture::new_cubemap_texture(
+            device,
+            queue,
+            128,
+            128,
+            cubemap_faces.as_slice(),
+            wgpu::TextureFormat::Rgba16Float,
+            5,
         )
     }
 }

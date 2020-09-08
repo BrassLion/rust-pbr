@@ -12,7 +12,7 @@ in VS_OUT {
 
 void main()
 {
-    vec3 envColor = texture(samplerCube(t_environmentMap, s_environmentMap), vs_out.local_pos).rgb;
+    vec3 envColor = textureLod(samplerCube(t_environmentMap, s_environmentMap), vs_out.local_pos, 1.2).rgb;
     
     envColor = envColor / (envColor + vec3(1.0));
     envColor = pow(envColor, vec3(1.0/2.2)); 

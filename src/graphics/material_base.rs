@@ -1,3 +1,5 @@
+use super::*;
+
 pub trait MaterialBase {
     fn begin_render_pass<'a>(
         &'a self,
@@ -94,6 +96,40 @@ pub fn build_render_pipeline(
     })
 }
 
+pub fn create_uniform_buffer<T>(
+    device: &wgpu::Device,
+    visibility: wgpu::ShaderStage,
+) -> (wgpu::Buffer, wgpu::BindGroup, wgpu::BindGroupLayout) {
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: std::mem::size_of::<T>() as u64,
+        usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+    });
+
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        bindings: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility,
+            ty: wgpu::BindingType::UniformBuffer { dynamic: false },
+        }],
+        label: None,
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &bind_group_layout,
+        bindings: &[wgpu::Binding {
+            binding: 0,
+            resource: wgpu::BindingResource::Buffer {
+                buffer: &buffer,
+                range: 0..std::mem::size_of::<T>() as wgpu::BufferAddress,
+            },
+        }],
+        label: None,
+    });
+
+    (buffer, bind_group, bind_group_layout)
+}
+
 pub fn update_uniform_buffer<T>(
     device: &wgpu::Device,
     uniform_buffer: &wgpu::Buffer,
@@ -117,4 +153,57 @@ pub fn update_uniform_buffer<T>(
         0,
         std::mem::size_of::<T>() as wgpu::BufferAddress,
     );
+}
+
+pub fn create_texture_bind_group(
+    device: &wgpu::Device,
+    visibility: wgpu::ShaderStage,
+    textures: &[&Texture],
+) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
+    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: None,
+        bindings: textures
+            .iter()
+            .enumerate()
+            .flat_map(|(i, tex)| {
+                std::iter::once(wgpu::BindGroupLayoutEntry {
+                    binding: (2 * i) as u32,
+                    visibility,
+                    ty: wgpu::BindingType::SampledTexture {
+                        dimension: tex.dimension,
+                        component_type: wgpu::TextureComponentType::Float,
+                        multisampled: false,
+                    },
+                })
+                .chain(std::iter::once(wgpu::BindGroupLayoutEntry {
+                    binding: (2 * i + 1) as u32,
+                    visibility,
+                    ty: wgpu::BindingType::Sampler { comparison: false },
+                }))
+            })
+            .collect::<Vec<wgpu::BindGroupLayoutEntry>>()
+            .as_slice(),
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: None,
+        layout: &bind_group_layout,
+        bindings: textures
+            .iter()
+            .enumerate()
+            .flat_map(|(i, tex)| {
+                std::iter::once(wgpu::Binding {
+                    binding: (2 * i) as u32,
+                    resource: wgpu::BindingResource::TextureView(&tex.view),
+                })
+                .chain(std::iter::once(wgpu::Binding {
+                    binding: (2 * i + 1) as u32,
+                    resource: wgpu::BindingResource::Sampler(&tex.sampler),
+                }))
+            })
+            .collect::<Vec<wgpu::Binding>>()
+            .as_slice(),
+    });
+
+    (bind_group_layout, bind_group)
 }

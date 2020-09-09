@@ -202,8 +202,6 @@ impl PbrMaterial {
             }
         }
 
-        println!("{}", pbr_defines);
-
         // Push a dumm
         if pbr_factor_values.len() == 0 {
             pbr_factor_values.push([0.0; 4]);

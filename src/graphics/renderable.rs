@@ -64,7 +64,6 @@ impl Renderable {
         let pbr_params = PbrBindGroup {
             ao_property: match mat.occlusion_texture() {
                 Some(gltf_texture) => {
-                    println!("ao");
                     textures.push(Renderable::create_texture(
                         &device,
                         &queue,
@@ -82,7 +81,6 @@ impl Renderable {
             },
             albedo_property: match mat.pbr_metallic_roughness().base_color_texture() {
                 Some(gltf_texture) => {
-                    println!("albedo");
                     textures.push(Renderable::create_texture(
                         &device,
                         &queue,
@@ -100,7 +98,6 @@ impl Renderable {
             },
             emissive_property: match mat.emissive_texture() {
                 Some(gltf_texture) => {
-                    println!("emissive");
                     textures.push(Renderable::create_texture(
                         &device,
                         &queue,
@@ -126,7 +123,6 @@ impl Renderable {
                 .metallic_roughness_texture()
             {
                 Some(gltf_texture) => {
-                    println!("metal_rough");
                     textures.push(Renderable::create_texture(
                         &device,
                         &queue,
@@ -149,7 +145,6 @@ impl Renderable {
             },
             normal_property: match mat.normal_texture() {
                 Some(gltf_texture) => {
-                    println!("normal");
                     textures.push(Renderable::create_texture(
                         &device,
                         &queue,

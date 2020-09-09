@@ -193,7 +193,11 @@ impl Texture {
                         array_layer: i as u32,
                         origin: wgpu::Origin3d::ZERO,
                     },
-                    size,
+                    wgpu::Extent3d {
+                        width: width >> mip_level,
+                        height: height >> mip_level,
+                        depth: 1,
+                    },
                 );
             }
         }

@@ -157,6 +157,7 @@ impl PbrMaterial {
             ("ALBEDO", params.albedo_property),
             ("EMISSIVE", params.emissive_property),
             ("METAL_ROUGHNESS", params.metal_roughness_property),
+            ("NORMAL", params.normal_property),
         ];
 
         for (prop_name, property) in pbr_properties.iter() {

@@ -32,12 +32,9 @@ void main() {
     vs_out.tex_coord = i_tex_coord;
     vs_out.world_pos = (u_camera.model * position).xyz;
 
-    vec3 T = normalize( vec3(u_camera.model * vec4(i_tangent.xyz, 0.0)) );
-    vec3 N = normalize( vec3(u_camera.model * vec4(i_normal, 0.0)) );
-
-    T = normalize(T - dot(T, N) * N);
-
-    vec3 B = cross(N, T);
-
+    vec3 T = normalize( (u_camera.model * vec4(i_tangent.xyz, 0.0)).xyz );
+    vec3 N = normalize( vs_out.normal );
+    vec3 B = normalize( (u_camera.model * vec4( (cross(i_tangent.xyz, i_normal) * i_tangent.w), 0.0 )).xyz );
+    
     vs_out.tbn = mat3(T, B, N);
 }

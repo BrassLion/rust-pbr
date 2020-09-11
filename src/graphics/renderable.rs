@@ -194,7 +194,7 @@ impl Renderable {
                     image.width,
                     image.height,
                     rgba_data.as_ref(),
-                    wgpu::TextureFormat::Rgba8UnormSrgb,
+                    wgpu::TextureFormat::Rgba8Unorm,
                     wgpu::AddressMode::Repeat,
                 )
             }
@@ -204,7 +204,7 @@ impl Renderable {
                 image.width,
                 image.height,
                 image.pixels.as_ref(),
-                wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::TextureFormat::Rgba8Unorm,
                 wgpu::AddressMode::Repeat,
             ),
             _ => panic!("Unimplemented tex type"),

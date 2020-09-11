@@ -226,15 +226,31 @@ impl Renderable {
             let norm_iter = reader.read_normals().unwrap();
             let tex_coord_iter = reader.read_tex_coords(0).unwrap().into_f32();
 
-            // Read vertices and indices.
-            for (vert_pos, vert_norm, vert_tex_coord) in izip!(pos_iter, norm_iter, tex_coord_iter)
-            {
-                vertices.push(Vertex {
-                    position: vert_pos,
-                    normal: vert_norm,
-                    tangent: [0.0; 4], // Calculated later.
-                    tex_coord: vert_tex_coord,
-                });
+            match reader.read_tangents() {
+                Some(tangent_iter) => {
+                    for (vert_pos, vert_norm, vert_tex_coord, tangent) in
+                        izip!(pos_iter, norm_iter, tex_coord_iter, tangent_iter)
+                    {
+                        vertices.push(Vertex {
+                            position: vert_pos,
+                            normal: vert_norm,
+                            tangent,
+                            tex_coord: vert_tex_coord,
+                        });
+                    }
+                }
+                None => {
+                    for (vert_pos, vert_norm, vert_tex_coord) in
+                        izip!(pos_iter, norm_iter, tex_coord_iter)
+                    {
+                        vertices.push(Vertex {
+                            position: vert_pos,
+                            normal: vert_norm,
+                            tangent: [0.0; 4],
+                            tex_coord: vert_tex_coord,
+                        });
+                    }
+                }
             }
 
             // Read indices.
@@ -245,43 +261,56 @@ impl Renderable {
             }
 
             // Calculate tangents.
+            let mut tangents: Vec<nalgebra::Vector3<f32>> =
+                vec![nalgebra::Vector3::zeros(); vertices.len()];
+            let mut bitangents: Vec<nalgebra::Vector3<f32>> =
+                vec![nalgebra::Vector3::zeros(); vertices.len()];
 
-            let mut index_iterator = indices.iter();
+            for tri_ids in indices.chunks(3) {
+                let i0 = tri_ids[0] as usize;
+                let i1 = tri_ids[1] as usize;
+                let i2 = tri_ids[2] as usize;
 
-            for vertex_id in 0..vertices.len() {
-                // Find first occurence of vertex.
-                let vertex_id_indice_pos =
-                    index_iterator.position(|x| *x == vertex_id as u32).unwrap();
+                let p0: nalgebra::Vector3<f32> = vertices[i0].position.into();
+                let p1: nalgebra::Vector3<f32> = vertices[i1].position.into();
+                let p2: nalgebra::Vector3<f32> = vertices[i2].position.into();
 
-                let tri_idx = vertex_id_indice_pos / 3;
+                let w0: nalgebra::Vector2<f32> = vertices[i0].tex_coord.into();
+                let w1: nalgebra::Vector2<f32> = vertices[i1].tex_coord.into();
+                let w2: nalgebra::Vector2<f32> = vertices[i2].tex_coord.into();
 
-                // Get all vertices in triangle.
-                let verts_in_tri = [
-                    vertices[indices[tri_idx * 3 + 0] as usize],
-                    vertices[indices[tri_idx * 3 + 1] as usize],
-                    vertices[indices[tri_idx * 3 + 2] as usize],
-                ];
+                let e1 = p1 - p0;
+                let e2 = p2 - p0;
 
-                let v1: nalgebra::Vector3<f32> = verts_in_tri[0].position.into();
-                let v2: nalgebra::Vector3<f32> = verts_in_tri[1].position.into();
-                let v3: nalgebra::Vector3<f32> = verts_in_tri[2].position.into();
+                let x1 = w1.x - w0.x;
+                let x2 = w2.x - w0.x;
 
-                let uv1: nalgebra::Vector2<f32> = verts_in_tri[0].tex_coord.into();
-                let uv2: nalgebra::Vector2<f32> = verts_in_tri[1].tex_coord.into();
-                let uv3: nalgebra::Vector2<f32> = verts_in_tri[2].tex_coord.into();
+                let y1 = w1.y - w0.y;
+                let y2 = w2.y - w0.y;
 
-                let e1 = v2 - v1;
-                let e2 = v3 - v1;
+                let r = 1.0 / (x1 * y2 - x2 * y1);
 
-                let delta_uv1 = uv2 - uv1;
-                let delta_uv2 = uv3 - uv1;
+                let t = (e1 * y2 - e2 * y1) * r;
+                let b = (e2 * x1 - e1 * x2) * r;
 
-                let f = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv2.x * delta_uv1.y);
+                tangents[i0] += t;
+                tangents[i1] += t;
+                tangents[i2] += t;
 
-                vertices[vertex_id].tangent[0] = f * (delta_uv2.y * e1.x - delta_uv1.y * e2.x);
-                vertices[vertex_id].tangent[1] = f * (delta_uv2.y * e1.y - delta_uv1.y * e2.y);
-                vertices[vertex_id].tangent[2] = f * (delta_uv2.y * e1.z - delta_uv1.y * e2.z);
-                vertices[vertex_id].tangent[3] = 1.0;
+                bitangents[i0] += b;
+                bitangents[i1] += b;
+                bitangents[i2] += b;
+            }
+
+            for (i, vertex) in vertices.iter_mut().enumerate() {
+                let t = tangents[i];
+                let b = bitangents[i];
+                let n: nalgebra::Vector3<f32> = vertex.normal.into();
+
+                let tangent = (t - n.dot(&t) * n).normalize();
+                let handedness = if n.dot(&t.cross(&b)) > 0.0 { 1.0 } else { -1.0 };
+
+                vertex.tangent = [tangent.x, tangent.y, tangent.z, handedness];
             }
         }
 

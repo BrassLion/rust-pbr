@@ -68,6 +68,7 @@ impl Renderable {
                         &device,
                         &queue,
                         &images[gltf_texture.texture().index()],
+                        wgpu::TextureFormat::Rgba8Unorm,
                     ));
                     MaterialProperty {
                         texture_id: Some(textures.len() - 1),
@@ -85,6 +86,7 @@ impl Renderable {
                         &device,
                         &queue,
                         &images[gltf_texture.texture().index()],
+                        wgpu::TextureFormat::Rgba8UnormSrgb,
                     ));
                     MaterialProperty {
                         texture_id: Some(textures.len() - 1),
@@ -102,6 +104,7 @@ impl Renderable {
                         &device,
                         &queue,
                         &images[gltf_texture.texture().index()],
+                        wgpu::TextureFormat::Rgba8UnormSrgb,
                     ));
                     MaterialProperty {
                         texture_id: Some(textures.len() - 1),
@@ -127,6 +130,7 @@ impl Renderable {
                         &device,
                         &queue,
                         &images[gltf_texture.texture().index()],
+                        wgpu::TextureFormat::Rgba8Unorm,
                     ));
                     MaterialProperty {
                         texture_id: Some(textures.len() - 1),
@@ -149,6 +153,7 @@ impl Renderable {
                         &device,
                         &queue,
                         &images[gltf_texture.texture().index()],
+                        wgpu::TextureFormat::Rgba8Unorm,
                     ));
                     MaterialProperty {
                         texture_id: Some(textures.len() - 1),
@@ -175,6 +180,7 @@ impl Renderable {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         image: &gltf::image::Data,
+        image_format: wgpu::TextureFormat,
     ) -> Texture {
         match image.format {
             gltf::image::Format::R8G8B8 => {
@@ -194,7 +200,7 @@ impl Renderable {
                     image.width,
                     image.height,
                     rgba_data.as_ref(),
-                    wgpu::TextureFormat::Rgba8Unorm,
+                    image_format,
                     wgpu::AddressMode::Repeat,
                 )
             }
@@ -204,7 +210,7 @@ impl Renderable {
                 image.width,
                 image.height,
                 image.pixels.as_ref(),
-                wgpu::TextureFormat::Rgba8Unorm,
+                image_format,
                 wgpu::AddressMode::Repeat,
             ),
             _ => panic!("Unimplemented tex type"),

@@ -60,7 +60,8 @@ vec3 importance_sample_ggx(vec2 Xi, vec3 N, float roughness)
 
 void main()
 {		
-    vec3 N = normalize(fs_in.pos);    
+    vec3 N = normalize(fs_in.pos);  
+    N.y = -N.y;  
     vec3 R = N;
     vec3 V = R;
 

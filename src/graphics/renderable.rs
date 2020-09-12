@@ -44,15 +44,15 @@ impl Renderable {
         Self::new(meshes, material)
     }
 
-    pub fn new_from_glb<'a>(
+    fn import_gltf(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
         queue: &wgpu::Queue,
-        glb_data: &[u8],
+        gltf: &gltf::Document,
+        buffers: &Vec<gltf::buffer::Data>,
+        images: &Vec<gltf::image::Data>,
         skybox: &Skybox,
     ) -> Self {
-        let (gltf, buffers, images) = gltf::import_slice(glb_data.as_ref()).unwrap();
-
         let mut meshes = Vec::new();
         let mut textures = Vec::new();
 
@@ -174,6 +174,30 @@ impl Renderable {
         let material = Box::new(PbrMaterial::new(&device, &sc_desc, &pbr_params));
 
         Renderable::new(meshes, material)
+    }
+
+    pub fn new_from_path(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        queue: &wgpu::Queue,
+        path: &std::path::Path,
+        skybox: &Skybox,
+    ) -> Self {
+        let (gltf, buffers, images) = gltf::import(path).unwrap();
+
+        Renderable::import_gltf(device, sc_desc, queue, &gltf, &buffers, &images, skybox)
+    }
+
+    pub fn new_from_glb<'a>(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        queue: &wgpu::Queue,
+        glb_data: &[u8],
+        skybox: &Skybox,
+    ) -> Self {
+        let (gltf, buffers, images) = gltf::import_slice(glb_data.as_ref()).unwrap();
+
+        Renderable::import_gltf(device, sc_desc, queue, &gltf, &buffers, &images, skybox)
     }
 
     fn create_texture(

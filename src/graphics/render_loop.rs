@@ -19,6 +19,7 @@ pub fn run<R: RenderLoopEvent>() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Rust PBR Example")
+        .with_inner_size(winit::dpi::PhysicalSize::new(1920, 1080))
         .build(&event_loop)
         .unwrap();
 

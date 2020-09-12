@@ -230,33 +230,27 @@ impl Renderable {
 
             let pos_iter = reader.read_positions().unwrap();
             let norm_iter = reader.read_normals().unwrap();
-            let tex_coord_iter = reader.read_tex_coords(0).unwrap().into_f32();
 
-            match reader.read_tangents() {
-                Some(tangent_iter) => {
-                    for (vert_pos, vert_norm, vert_tex_coord, tangent) in
-                        izip!(pos_iter, norm_iter, tex_coord_iter, tangent_iter)
-                    {
-                        vertices.push(Vertex {
-                            position: vert_pos,
-                            normal: vert_norm,
-                            tangent,
-                            tex_coord: vert_tex_coord,
-                        });
-                    }
-                }
-                None => {
-                    for (vert_pos, vert_norm, vert_tex_coord) in
-                        izip!(pos_iter, norm_iter, tex_coord_iter)
-                    {
-                        vertices.push(Vertex {
-                            position: vert_pos,
-                            normal: vert_norm,
-                            tangent: [0.0; 4],
-                            tex_coord: vert_tex_coord,
-                        });
-                    }
-                }
+            let tex_coord_iter: Box<dyn Iterator<Item = [f32; 2]>> = match reader.read_tex_coords(0)
+            {
+                Some(tex_coords_iter) => Box::new(tex_coords_iter.into_f32()),
+                None => Box::new(std::iter::repeat([0.0; 2])),
+            };
+
+            let tangent_iter: Box<dyn Iterator<Item = [f32; 4]>> = match reader.read_tangents() {
+                Some(tangent_iter) => Box::new(tangent_iter),
+                None => Box::new(std::iter::repeat([0.0; 4])),
+            };
+
+            for (vert_pos, vert_norm, vert_tex_coord, vert_tangent) in
+                izip!(pos_iter, norm_iter, tex_coord_iter, tangent_iter)
+            {
+                vertices.push(Vertex {
+                    position: vert_pos,
+                    normal: vert_norm,
+                    tangent: vert_tangent,
+                    tex_coord: vert_tex_coord,
+                });
             }
 
             // Read indices.

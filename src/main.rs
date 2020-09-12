@@ -10,12 +10,17 @@ struct ExampleRenderLoop {
     dispatcher: Dispatcher<'static, 'static>,
 }
 
-struct RotateLightSystem;
+struct RotateObjectSystem;
 
-impl<'a> System<'a> for RotateLightSystem {
+struct RotatingModel;
+impl Component for RotatingModel {
+    type Storage = VecStorage<Self>;
+}
+
+impl<'a> System<'a> for RotateObjectSystem {
     type SystemData = (
         WriteStorage<'a, graphics::Pose>,
-        WriteStorage<'a, graphics::Light>,
+        ReadStorage<'a, RotatingModel>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -23,7 +28,7 @@ impl<'a> System<'a> for RotateLightSystem {
 
         for (pose, _) in (&mut pose, &light).join() {
             pose.model_matrix.append_rotation_wrt_point_mut(
-                &nalgebra::UnitQuaternion::new(nalgebra::Vector3::new(0.0, 0.0, 0.01)),
+                &nalgebra::UnitQuaternion::new(nalgebra::Vector3::new(0.0, 0.01, 0.0)),
                 &nalgebra::Point3::new(0.0, 0.0, 0.0),
             )
         }
@@ -36,7 +41,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         let render_state = futures::executor::block_on(graphics::RenderState::new(&window));
 
         // Create camera.
-        let camera_position = nalgebra::Point3::new(1.0, 0.0, 1.0);
+        let camera_position = nalgebra::Point3::new(0.0, 0.0, 2.0);
         let camera_target = nalgebra::Point3::new(0.0, 0.0, 0.0);
         let camera_up = nalgebra::Vector3::y_axis();
 
@@ -52,7 +57,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Create render system.
         let mut dispatcher = DispatcherBuilder::new()
-            .with(RotateLightSystem, "rot_system", &[])
+            .with(RotateObjectSystem, "rot_system", &[])
             .with(graphics::RenderSystem, "render_system", &["rot_system"])
             .build();
 
@@ -65,9 +70,8 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Add model to world.
         let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
-        // let helmet_data = include_bytes!("../res/MetalRoughSpheres.glb");
 
-        let hdr_data = include_bytes!("../res/venice_sunset_2k.hdr");
+        let hdr_data = include_bytes!("../res/newport_loft.hdr");
 
         let (skybox, skybox_renderable) = graphics::Skybox::new(
             &render_state.device,
@@ -75,7 +79,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             &render_state.queue,
             hdr_data,
         );
-
+        world.register::<RotatingModel>();
         world
             .create_entity()
             .with(graphics::Renderable::new_from_glb(
@@ -88,7 +92,11 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             .with(graphics::Pose {
                 model_matrix: nalgebra::Similarity3::from_parts(
                     nalgebra::Translation3::identity(),
-                    nalgebra::UnitQuaternion::from_euler_angles(0.0, 0.0, 0.0),
+                    nalgebra::UnitQuaternion::from_euler_angles(
+                        std::f32::consts::FRAC_PI_2,
+                        0.0,
+                        0.0,
+                    ),
                     1.0,
                 ),
             })
@@ -119,6 +127,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
                 ),
             })
             .with(graphics::Light {})
+            .with(RotatingModel)
             .build();
 
         // Pass render state into ECS as last step.

@@ -25,7 +25,6 @@ pub struct LightingBindGroup {
 
 pub fn build_render_pipeline(
     device: &wgpu::Device,
-    sc_desc: &wgpu::SwapChainDescriptor,
     vertex_shader_src: &str,
     fragment_shader_src: &str,
     bind_group_layouts: &[&wgpu::BindGroupLayout],

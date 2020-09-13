@@ -335,7 +335,6 @@ impl PbrMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            &swap_chain_desc,
             include_str!("shaders/pbr.vert"),
             &format!(
                 "#version 450\n\n{}\n{}",

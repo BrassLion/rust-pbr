@@ -48,11 +48,7 @@ pub struct HdrConvolveSpecularBindGroup<'a> {
 }
 
 impl HdrCvtMaterial {
-    pub fn new(
-        device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        params: &HdrCvtBindGroup,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, params: &HdrCvtBindGroup) -> Self {
         // Init bind groups.
         // Transform buffers.
         let (transform_bind_group_buffer, transform_bind_group, transform_bind_group_layout) =
@@ -114,7 +110,6 @@ impl HdrCvtMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            sc_desc,
             include_str!("./shaders/hdr.vert"),
             include_str!("./shaders/hdr_cvt.frag"),
             &[&transform_bind_group_layout, &cvt_bind_group_layout],
@@ -133,11 +128,7 @@ impl HdrCvtMaterial {
 }
 
 impl HdrConvolveDiffuseMaterial {
-    pub fn new(
-        device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        params: &HdrConvolveDiffuseBindGroup,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, params: &HdrConvolveDiffuseBindGroup) -> Self {
         // Init bind groups.
         // Transform buffers.
         let (transform_bind_group_buffer, transform_bind_group, transform_bind_group_layout) =
@@ -199,7 +190,6 @@ impl HdrConvolveDiffuseMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            sc_desc,
             include_str!("./shaders/hdr.vert"),
             include_str!("./shaders/hdr_convolve_diffuse.frag"),
             &[&transform_bind_group_layout, &convolve_bind_group_layout],
@@ -218,11 +208,7 @@ impl HdrConvolveDiffuseMaterial {
 }
 
 impl HdrConvolveSpecularMaterial {
-    pub fn new(
-        device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        params: &HdrConvolveSpecularBindGroup,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, params: &HdrConvolveSpecularBindGroup) -> Self {
         // Init bind groups.
         let (transform_bind_group_buffer, transform_bind_group, transform_bind_group_layout) =
             material_base::create_uniform_buffer::<TransformBindGroup>(
@@ -286,7 +272,6 @@ impl HdrConvolveSpecularMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            sc_desc,
             include_str!("./shaders/hdr.vert"),
             include_str!("./shaders/hdr_convolve_specular.frag"),
             &[
@@ -311,7 +296,7 @@ impl HdrConvolveSpecularMaterial {
 }
 
 impl HdrConvolveBrdfMaterial {
-    pub fn new(device: &wgpu::Device, sc_desc: &wgpu::SwapChainDescriptor) -> Self {
+    pub fn new(device: &wgpu::Device) -> Self {
         // Init bind groups.
         let (transform_bind_group_buffer, transform_bind_group, transform_bind_group_layout) =
             material_base::create_uniform_buffer::<TransformBindGroup>(
@@ -364,7 +349,6 @@ impl HdrConvolveBrdfMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            sc_desc,
             include_str!("./shaders/hdr.vert"),
             include_str!("./shaders/hdr_convolve_brdf.frag"),
             &[&transform_bind_group_layout],

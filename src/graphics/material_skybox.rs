@@ -142,7 +142,6 @@ impl SkyboxMaterial {
 
         let render_pipeline = material_base::build_render_pipeline(
             device,
-            &sc_desc,
             include_str!("shaders/skybox.vert"),
             include_str!("shaders/skybox.frag"),
             &[&transform_bind_group_layout, &params_bind_group_layout],
@@ -167,7 +166,7 @@ impl MaterialBase for SkyboxMaterial {
         encoder: &'a mut wgpu::CommandEncoder,
         rp_desc: &'a wgpu::RenderPassDescriptor,
         transform_data: &TransformBindGroup,
-        lighting_data: &LightingBindGroup,
+        _lighting_data: &LightingBindGroup,
     ) -> wgpu::RenderPass<'a> {
         material_base::update_uniform_buffer(
             device,

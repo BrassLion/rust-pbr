@@ -107,7 +107,6 @@ impl Skybox {
         // Convolve the environment map.
         let irradiance_map = Skybox::create_irradiance_map(
             device,
-            sc_desc,
             queue,
             &environment_texture,
             &unit_cube_mesh,
@@ -118,7 +117,6 @@ impl Skybox {
         // Generate specular IBL pre-filtered environment map.
         let prefiltered_environment_map = Skybox::create_prefiltered_environment_map(
             device,
-            sc_desc,
             queue,
             &environment_texture,
             &unit_cube_mesh,
@@ -126,7 +124,7 @@ impl Skybox {
             &views,
         );
 
-        let precomputed_brdf = Skybox::create_precomputed_brdf_texture(device, sc_desc, queue);
+        let precomputed_brdf = Skybox::create_precomputed_brdf_texture(device, queue);
 
         let skybox_params = SkyboxBindGroup {
             environment_texture,
@@ -196,17 +194,7 @@ impl Skybox {
             equirectangular_texture: hdr_texture,
         };
 
-        let hdr_material = Box::new(HdrCvtMaterial::new(
-            device,
-            &wgpu::SwapChainDescriptor {
-                format: wgpu::TextureFormat::Rgba16Float,
-                usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
-                width: 512,
-                height: 512,
-                present_mode: wgpu::PresentMode::Immediate,
-            },
-            &hdr_material_params,
-        ));
+        let hdr_material = Box::new(HdrCvtMaterial::new(device, &hdr_material_params));
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("HDR convert"),
@@ -275,7 +263,6 @@ impl Skybox {
 
     fn create_irradiance_map(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
         queue: &wgpu::Queue,
         environment_texture: &Texture,
         unit_cube_mesh: &Mesh,
@@ -290,7 +277,7 @@ impl Skybox {
             environment_texture: environment_texture,
         };
 
-        let convolve_material = HdrConvolveDiffuseMaterial::new(device, sc_desc, &convolve_params);
+        let convolve_material = HdrConvolveDiffuseMaterial::new(device, &convolve_params);
 
         let mut cubemap_faces = Vec::new();
 
@@ -349,7 +336,6 @@ impl Skybox {
 
     fn create_prefiltered_environment_map(
         device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
         queue: &wgpu::Queue,
         environment_texture: &Texture,
         unit_cube_mesh: &Mesh,
@@ -358,7 +344,6 @@ impl Skybox {
     ) -> Texture {
         let hdr_specular_convolution_material = HdrConvolveSpecularMaterial::new(
             device,
-            sc_desc,
             &HdrConvolveSpecularBindGroup {
                 environment_texture: environment_texture,
                 roughness: 0.0,
@@ -455,11 +440,7 @@ impl Skybox {
         )
     }
 
-    fn create_precomputed_brdf_texture(
-        device: &wgpu::Device,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        queue: &wgpu::Queue,
-    ) -> Texture {
+    fn create_precomputed_brdf_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Texture {
         let screen_space_quad_vertices: [[f32; 3]; 4] = [
             [-1.0, -1.0, 0.0],
             [-1.0, 1.0, 0.0],
@@ -489,7 +470,7 @@ impl Skybox {
             Some(&screen_space_quad_elements),
         );
 
-        let brdf_mat = HdrConvolveBrdfMaterial::new(device, sc_desc);
+        let brdf_mat = HdrConvolveBrdfMaterial::new(device);
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("brdf_precompute"),

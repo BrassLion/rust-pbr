@@ -10,6 +10,7 @@ struct ExampleRenderLoop {
     dispatcher: Dispatcher<'static, 'static>,
 }
 
+// System that rotates entities with the RotatingModel component on every frame update.
 struct RotateObjectSystem;
 
 struct RotatingModel;
@@ -67,10 +68,10 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
         world.register::<graphics::Renderable>();
         world.register::<graphics::Pose>();
         world.register::<graphics::Light>();
+        world.register::<RotatingModel>();
 
-        // Add model to world.
+        // Add models to world.
         let helmet_data = include_bytes!("../res/DamagedHelmet.glb");
-
         let hdr_data = include_bytes!("../res/newport_loft.hdr");
 
         let (skybox, skybox_renderable) = graphics::Skybox::new(
@@ -79,7 +80,7 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
             &render_state.queue,
             hdr_data,
         );
-        world.register::<RotatingModel>();
+
         world
             .create_entity()
             .with(graphics::Renderable::new_from_glb(
@@ -132,7 +133,6 @@ impl graphics::RenderLoopEvent for ExampleRenderLoop {
 
         // Pass render state into ECS as last step.
         world.insert(render_state);
-
         world.insert(camera);
 
         dispatcher.setup(&mut world);
